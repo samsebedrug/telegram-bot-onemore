@@ -8,6 +8,12 @@ from telegram.ext import (
     ContextTypes, ConversationHandler
 )
 
+# Удаляем старый Webhook — это ключевой шаг!
+Bot("7543889103:AAG9rP-jt7lfcCGZ5hZwJvFwHx9n65XtkVU").delete_webhook(drop_pending_updates=True)
+
+# Потом создаётся Application:
+app = ApplicationBuilder().token("7543889103:AAG9rP-jt7lfcCGZ5hZwJvFwHx9n65XtkVU").build()
+
 # Состояния
 ROLE, NAME, CONTACT, VIDEO_TYPE, PORTFOLIO, CUSTOM_QUESTION = range(6)
 
