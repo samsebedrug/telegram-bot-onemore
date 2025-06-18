@@ -41,15 +41,9 @@ sheet = client.open("One More Bot").sheet1
 ) = range(5)
 
 # Кнопки
-def base_keyboard(final=False):
-    if final:
-        return InlineKeyboardMarkup([
-            [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-            [InlineKeyboardButton("🔁 Заново", callback_data="restart")]
-        ])
+def base_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-        [InlineKeyboardButton("🔁 В начало", callback_data="restart")]
+        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -61,22 +55,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
 
+    welcome_text = (
+        "Добро пожаловать в One More Production!\n\n"
+        "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
+        "С нами просто и точно захочется one more.\n\n"
+        "Воспользуйтесь нашим telegram-ботом или напишите нам на почту weare@onemorepro.com\n\n"
+        "👇 Выберите, кто вы:"
+    )
+
     if update.message:
-        await update.message.reply_text(
-            "Добро пожаловать в One More Production!\n\n"
-            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
-            "С нами просто. И точно захочется one more.\n\n"
-            "👇 Выберите, кто вы:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
     elif update.callback_query:
-        await update.callback_query.message.reply_text(
-            "Добро пожаловать в One More Production!\n\n"
-            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
-            "С нами просто. И точно захочется one more.\n\n"
-            "👇 Выберите, кто вы:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await update.callback_query.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
     return CHOOSE_ROLE
 
@@ -143,8 +133,9 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     sheet.append_row(context.user_data["row"])
 
     await update.message.reply_text(
-        "Спасибо! Мы получили ваши данные и скоро с вами свяжемся.",
-        reply_markup=base_keyboard(final=True)
+        "Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\n"
+        "Для повторного запуска бота введите команду /start",
+        reply_markup=base_keyboard()
     )
     return ConversationHandler.END
 
@@ -152,24 +143,7 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     if update.callback_query:
         await update.callback_query.answer()
-
-    keyboard = [
-        [InlineKeyboardButton("Клиент", callback_data="client")],
-        [InlineKeyboardButton("Соискатель", callback_data="applicant")],
-        [InlineKeyboardButton("Другое", callback_data="other")]
-    ]
-
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=(
-            "Добро пожаловать в One More Production!\n\n"
-            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
-            "С нами просто. И точно захочется one more.\n\n"
-            "👇 Выберите, кто вы:"
-        ),
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-    return CHOOSE_ROLE
+    return await start(update, context)
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
@@ -192,14 +166,14 @@ async def main():
         },
         fallbacks=[
             CommandHandler("cancel", cancel),
-            CallbackQueryHandler(restart, pattern="^restart$")  # ← fallback inside
+            CallbackQueryHandler(restart, pattern="^restart$")
         ],
         per_chat=True,
         per_message=False,
     )
 
     app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))  # ← fallback outside too
+    app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_webhook(
