@@ -20,7 +20,6 @@ from telegram.ext import (
 )
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import telegram
 
 # Логирование
 logging.basicConfig(level=logging.INFO)
@@ -70,10 +69,7 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     role = query.data
     context.user_data["role"] = role
     context.user_data["row"] = [role, "", "", "", ""]
-    try:
-        await query.edit_message_text("Как вас зовут или какую компанию вы представляете?", reply_markup=base_keyboard())
-    except telegram.error.BadRequest:
-        await query.message.reply_text("Как вас зовут или какую компанию вы представляете?", reply_markup=base_keyboard())
+    await query.edit_message_text("Как вас зовут или какую компанию вы представляете?", reply_markup=base_keyboard())
     return GET_NAME
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -111,13 +107,9 @@ async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     role = context.user_data["role"]
 
     if update.callback_query:
-        query = update.callback_query
-        await query.answer()
-        position = query.data
-        try:
-            await query.edit_message_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
-        except telegram.error.BadRequest:
-            await query.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
+        await update.callback_query.answer()
+        position = update.callback_query.data
+        await update.callback_query.edit_message_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
     else:
         position = update.message.text
         await update.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
@@ -142,13 +134,9 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     if update.callback_query:
-        query = update.callback_query
-        await query.answer()
-        try:
-            await query.edit_message_text("Вы вернулись в начало. 👇 Выберите, кто вы:")
-        except telegram.error.BadRequest:
-            await query.message.reply_text("Вы вернулись в начало. 👇 Выберите, кто вы:")
-        return await start(query, context)
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text("Вы вернулись в начало. 👇 Выберите, кто вы:")
+        return await start(update.callback_query, context)
     else:
         return await start(update, context)
 
@@ -172,13 +160,13 @@ async def main():
             GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
-        per_message=True  # ← добавлено
     )
 
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
     await app.bot.delete_webhook(drop_pending_updates=True)
+    await app.bot.set_webhook(f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/")  # ← добавлено
     await app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
