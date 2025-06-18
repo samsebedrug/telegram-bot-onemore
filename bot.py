@@ -41,9 +41,11 @@ sheet = client.open("One More Bot").sheet1
 ) = range(5)
 
 # Кнопки
+
 def base_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]
+        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
+        [InlineKeyboardButton("📧 Написать на почту", url="mailto:weare@onemorepro.com")]
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -55,7 +57,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
 
-    welcome_text = (
+    text = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
         "С нами просто и точно захочется one more.\n\n"
@@ -64,9 +66,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
 
     if update.message:
-        await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
     elif update.callback_query:
-        await update.callback_query.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.callback_query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
     return CHOOSE_ROLE
 
@@ -133,17 +135,36 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     sheet.append_row(context.user_data["row"])
 
     await update.message.reply_text(
-        "Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\n"
-        "Для повторного запуска бота введите команду /start",
+        "Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\nДля повторного запуска бота введите команду /start",
         reply_markup=base_keyboard()
     )
     return ConversationHandler.END
 
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
+
     if update.callback_query:
         await update.callback_query.answer()
-    return await start(update, context)
+
+    keyboard = [
+        [InlineKeyboardButton("Клиент", callback_data="client")],
+        [InlineKeyboardButton("Соискатель", callback_data="applicant")],
+        [InlineKeyboardButton("Другое", callback_data="other")]
+    ]
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            "Добро пожаловать в One More Production!\n\n"
+            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
+            "С нами просто и точно захочется one more.\n\n"
+            "Воспользуйтесь нашим telegram-ботом или напишите нам на почту weare@onemorepro.com\n\n"
+            "👇 Выберите, кто вы:"
+        ),
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+    return CHOOSE_ROLE
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
@@ -164,10 +185,7 @@ async def main():
             ],
             GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
         },
-        fallbacks=[
-            CommandHandler("cancel", cancel),
-            CallbackQueryHandler(restart, pattern="^restart$")
-        ],
+        fallbacks=[CommandHandler("cancel", cancel)],
         per_chat=True,
         per_message=False,
     )
