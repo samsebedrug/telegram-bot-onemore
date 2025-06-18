@@ -3,32 +3,34 @@ import os
 import nest_asyncio
 import asyncio
 
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import ReplyKeyboardMarkup, Update
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
-    ContextTypes,
-    ConversationHandler,
     filters,
+    ConversationHandler,
+    ContextTypes,
 )
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Настройка логирования
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+# Telegram logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Состояния диалога
+# Conversation states
 ASK_NAME, ASK_ROLE = range(2)
 
-# Настройка Google Sheets
+# Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(credentials)
 sheet = client.open("One More Bot").sheet1
 
-# Обработчик команды /start
+# /start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Привет! Как тебя зовут?")
     return ASK_NAME
@@ -39,30 +41,27 @@ async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_keyboard = [["Клиент", "Коуч"]]
     await update.message.reply_text(
         "Выбери свою роль:",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True),
     )
     return ASK_ROLE
 
 # Получение роли
 async def ask_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    name = context.user_data.get("name")
-    role = update.message.text
+    context.user_data["role"] = update.message.text
+    name = context.user_data["name"]
+    role = context.user_data["role"]
     sheet.append_row([name, role])
     await update.message.reply_text("Спасибо! Данные сохранены.")
     return ConversationHandler.END
 
-# Обработка отмены
+# Отмена
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
-# Основной запуск через webhook
+# Основная логика бота
 async def main():
-    bot_token = os.getenv("BOT_TOKEN")
-    port = int(os.getenv("PORT", "10000"))
-    webhook_url = f"{os.getenv('RENDER_EXTERNAL_URL')}/webhook"
-
-    application = Application.builder().token(bot_token).build()
+    application = Application.builder().token(os.getenv("BOT_TOKEN")).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -75,17 +74,8 @@ async def main():
 
     application.add_handler(conv_handler)
 
-    # Запуск webhook
-    await application.bot.set_webhook(webhook_url)
-    await application.start()
-    await application.updater.start_webhook(
-        listen="0.0.0.0",
-        port=port,
-        url_path="webhook",
-        webhook_url=webhook_url,
-    )
-
-nest_asyncio.apply()
+    await application.run_polling()
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    nest_asyncio.apply()
+    asyncio.run(main())
