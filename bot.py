@@ -1,85 +1,103 @@
 import os
 import logging
-import asyncio
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from telegram import Update, Bot
+
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
-    filters,
-    ContextTypes,
     ConversationHandler,
+    ContextTypes,
+    filters,
 )
+from oauth2client.service_account import ServiceAccountCredentials
 
-# Логирование
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Состояния
-NAME, PHONE, ROLE = range(3)
+# Логгирование
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 
 # Авторизация Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(creds)
-sheet = client.open("One More Bot").sheet1  # Имя таблицы
+sheet = client.open("One More Bot").sheet1  # Убедись, что имя совпадает
 
-# Команды
+# Состояния для ConversationHandler
+SELECT_ROLE, ENTER_NAME, ENTER_PHONE, CONFIRM = range(4)
+
+# Стартовая команда
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Привет! Введи своё имя:")
-    return NAME
+    keyboard = [["Студент", "Преподаватель"]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("Выберите вашу роль:", reply_markup=reply_markup)
+    return SELECT_ROLE
 
-async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["name"] = update.message.text
-    await update.message.reply_text("Спасибо! Теперь введи номер телефона:")
-    return PHONE
-
-async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["phone"] = update.message.text
-    await update.message.reply_text("Какая твоя роль в проекте?")
-    return ROLE
-
-async def get_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+# Обработка выбранной роли
+async def select_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["role"] = update.message.text
+    await update.message.reply_text("Введите ваше имя:")
+    return ENTER_NAME
 
-    # Сохраняем в Google Sheets
-    sheet.append_row(
-        [context.user_data["name"], context.user_data["phone"], context.user_data["role"]]
+# Обработка имени
+async def enter_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["name"] = update.message.text
+    await update.message.reply_text("Введите ваш номер телефона:")
+    return ENTER_PHONE
+
+# Обработка номера телефона
+async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["phone"] = update.message.text
+
+    # Подтверждение
+    role = context.user_data["role"]
+    name = context.user_data["name"]
+    phone = context.user_data["phone"]
+    await update.message.reply_text(
+        f"Проверьте данные:\n\nРоль: {role}\nИмя: {name}\nТелефон: {phone}\n\nЕсли всё верно, напишите 'Да'"
     )
+    return CONFIRM
 
-    await update.message.reply_text("Спасибо! Данные записаны.")
+# Подтверждение и запись
+async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.message.text.lower() == "да":
+        sheet.append_row([
+            context.user_data["role"],
+            context.user_data["name"],
+            context.user_data["phone"]
+        ])
+        await update.message.reply_text("Данные сохранены. Спасибо!")
+    else:
+        await update.message.reply_text("Отменено. Начните заново: /start")
+
     return ConversationHandler.END
 
+# Обработка отмены
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
-# Асинхронный запуск
-async def main():
-    bot_token = os.environ.get("BOT_TOKEN")
-    bot = Bot(bot_token)
-
-    # Удаление webhook (если вдруг стоит)
-    await bot.delete_webhook(drop_pending_updates=True)
-
-    app = Application.builder().token(bot_token).build()
+# Запуск приложения
+def main() -> None:
+    token = os.getenv("BOT_TOKEN")  # Убедись, что BOT_TOKEN задан в Render
+    application = Application.builder().token(token).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-            PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone)],
-            ROLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_role)],
+            SELECT_ROLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_role)],
+            ENTER_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_name)],
+            ENTER_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone)],
+            CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
-    app.add_handler(conv_handler)
+    application.add_handler(conv_handler)
 
-    await app.run_polling()
+    # ⛔ БЕЗ asyncio.run(): just call run_polling directly
+    application.run_polling()
 
-# Точка входа
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
