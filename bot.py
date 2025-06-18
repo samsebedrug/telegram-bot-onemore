@@ -54,18 +54,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
-    text = (
-        "Добро пожаловать в One More Production!\n\n"
-        "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
-        "С нами просто. И точно захочется one more.\n\n"
-        "👇 Выберите, кто вы:"
-    )
-
     if update.message:
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text(
+            "Добро пожаловать в One More Production!\n\n"
+            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
+            "С нами просто. И точно захочется one more.\n\n"
+            "👇 Выберите, кто вы:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
     elif update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-
+        await update.callback_query.edit_message_text(
+            "Добро пожаловать в One More Production!\n\n"
+            "👇 Выберите, кто вы:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
     return CHOOSE_ROLE
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -141,7 +143,7 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.callback_query:
         await update.callback_query.answer()
         await update.callback_query.edit_message_text("Вы вернулись в начало. 👇 Выберите, кто вы:")
-        return await start(update.callback_query, context)
+        return await start(update, context)
     else:
         return await start(update, context)
 
@@ -167,6 +169,8 @@ async def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
+    # Эта строка позволяет обрабатывать /start в любой момент
+    app.add_handler(CommandHandler("start", start))
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
