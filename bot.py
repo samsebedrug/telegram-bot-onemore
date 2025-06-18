@@ -1,32 +1,28 @@
 import logging
 import os
-import asyncio
 import nest_asyncio
+import asyncio
 
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import ReplyKeyboardMarkup, Update
 from telegram.ext import (
-    ApplicationBuilder,
+    Application,
     CommandHandler,
     MessageHandler,
     filters,
-    ContextTypes,
     ConversationHandler,
+    ContextTypes,
 )
-
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Apply patch to allow nested event loops (especially in some hosting environments)
-nest_asyncio.apply()
-
-# Logging
+# Telegram logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Telegram Bot Token
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+# Conversation states
+ASK_NAME, ASK_ROLE = range(2)
 
 # Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -34,44 +30,38 @@ credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json
 client = gspread.authorize(credentials)
 sheet = client.open("One More Bot").sheet1
 
-# States
-ASK_NAME, ASK_ROLE = range(2)
-
-# Start command
+# /start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Привет! Как тебя зовут?")
     return ASK_NAME
 
-# Ask for role
+# Получение имени
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user_name = update.message.text
-    context.user_data["name"] = user_name
-    reply_keyboard = [["Заказчик", "Исполнитель"]]
+    context.user_data["name"] = update.message.text
+    reply_keyboard = [["Клиент", "Коуч"]]
     await update.message.reply_text(
-        f"Приятно познакомиться, {user_name}! Кто ты?",
+        "Выбери свою роль:",
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
     )
     return ASK_ROLE
 
-# Finish conversation
+# Получение роли
 async def ask_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    role = update.message.text
+    context.user_data["role"] = update.message.text
     name = context.user_data["name"]
+    role = context.user_data["role"]
     sheet.append_row([name, role])
-    await update.message.reply_text(f"Спасибо, {name}! Ты записан как {role}.")
+    await update.message.reply_text("Спасибо! Данные сохранены.")
     return ConversationHandler.END
 
-# Cancel command
+# Отмена
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Диалог отменен.")
+    await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
-# Main entry
-async def main():
-    if not BOT_TOKEN:
-        raise EnvironmentError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения!")
-
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+# Основная логика бота
+async def main() -> None:
+    application = Application.builder().token(os.getenv("BOT_TOKEN")).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -82,9 +72,12 @@ async def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
-    app.add_handler(conv_handler)
+    application.add_handler(conv_handler)
 
-    await app.run_polling()
+    await application.run_polling()
+
+# Для Render / Nest-совместимых окружений
+nest_asyncio.apply()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.get_event_loop().run_until_complete(main())
