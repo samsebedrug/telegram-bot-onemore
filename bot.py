@@ -43,8 +43,7 @@ sheet = client.open("One More Bot").sheet1
 # Кнопки
 def base_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-        [InlineKeyboardButton("📧 Написать на почту", url="mailto:weare@onemorepro.com")]
+        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
