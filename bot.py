@@ -54,13 +54,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
-    await update.message.reply_text(
+    text = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
         "С нами просто. И точно захочется one more.\n\n"
-        "👇 Выберите, кто вы:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        "👇 Выберите, кто вы:"
     )
+
+    if update.message:
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    elif update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
     return CHOOSE_ROLE
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -166,7 +171,6 @@ async def main():
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
     await app.bot.delete_webhook(drop_pending_updates=True)
-    await app.bot.set_webhook(f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/")  # ← добавлено
     await app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
