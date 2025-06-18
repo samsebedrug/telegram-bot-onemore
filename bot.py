@@ -15,14 +15,16 @@ from telegram.ext import (
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+# Conversation states
 ASK_NAME, ASK_ROLE = range(2)
 
+# Logging setup
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Sheets setup
+# Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(credentials)
@@ -52,8 +54,16 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
+# Main logic
 async def main():
-    token = os.environ["BOT_TOKEN"]
+    token = os.environ.get("BOT_TOKEN")
+
+    if not token:
+        logger.error("Переменная окружения BOT_TOKEN не найдена!")
+        raise RuntimeError("BOT_TOKEN не найден в переменных окружения!")
+
+    logger.info(f"BOT_TOKEN detected: {token[:10]}...")  # Безопасно обрезаем для логов
+
     app = Application.builder().token(token).build()
 
     conv_handler = ConversationHandler(
@@ -64,19 +74,21 @@ async def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+
     app.add_handler(conv_handler)
 
     # Удалим старый webhook, если был
     await app.bot.delete_webhook(drop_pending_updates=True)
 
-    # Запустим webhook
+    # Запуск webhook
     await app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
-        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
+        webhook_url=f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}/"
     )
 
-# Для Render
+# Render-specific async support
 nest_asyncio.apply()
+
 if __name__ == "__main__":
     asyncio.run(main())
