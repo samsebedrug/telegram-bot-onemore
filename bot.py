@@ -15,53 +15,46 @@ from telegram.ext import (
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Telegram logging
+ASK_NAME, ASK_ROLE = range(2)
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Conversation states
-ASK_NAME, ASK_ROLE = range(2)
-
-# Google Sheets setup
+# Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(credentials)
 sheet = client.open("One More Bot").sheet1
 
-# /start command handler
+# Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Привет! Как тебя зовут?")
     return ASK_NAME
 
-# Получение имени
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["name"] = update.message.text
     reply_keyboard = [["Клиент", "Коуч"]]
     await update.message.reply_text(
         "Выбери свою роль:",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True),
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
     )
     return ASK_ROLE
 
-# Получение роли
 async def ask_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["role"] = update.message.text
-    name = context.user_data["name"]
-    role = context.user_data["role"]
-    sheet.append_row([name, role])
+    sheet.append_row([context.user_data["name"], context.user_data["role"]])
     await update.message.reply_text("Спасибо! Данные сохранены.")
     return ConversationHandler.END
 
-# Отмена
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
-# Основная логика бота
 async def main():
-    application = Application.builder().token(os.getenv("BOT_TOKEN")).build()
+    token = os.environ["BOT_TOKEN"]
+    app = Application.builder().token(token).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -71,11 +64,19 @@ async def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+    app.add_handler(conv_handler)
 
-    application.add_handler(conv_handler)
+    # Удалим старый webhook, если был
+    await app.bot.delete_webhook(drop_pending_updates=True)
 
-    await application.run_polling()
+    # Запустим webhook
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8443)),
+        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
+    )
 
+# Для Render
+nest_asyncio.apply()
 if __name__ == "__main__":
-    nest_asyncio.apply()
     asyncio.run(main())
