@@ -5,7 +5,6 @@ import nest_asyncio
 
 from telegram import (
     Update,
-    ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
@@ -69,7 +68,7 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await query.answer()
     role = query.data
     context.user_data["role"] = role
-    context.user_data["row"] = [role, "", "", "", ""]  # Структура: role, name, contact, position, details
+    context.user_data["row"] = [role, "", "", "", ""]
     await query.edit_message_text("Как вас зовут или какую компанию вы представляете?", reply_markup=base_keyboard())
     return GET_NAME
 
@@ -97,7 +96,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         ]
         await update.message.reply_text(
             "Что вас интересует?",
-            reply_markup=InlineKeyboardMarkup(keyboard + base_keyboard().inline_keyboard)
+            reply_markup=InlineKeyboardMarkup(keyboard + list(base_keyboard().inline_keyboard))  # ← fixed here
         )
     else:
         return GET_DETAILS
