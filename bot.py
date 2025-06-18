@@ -101,7 +101,8 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Реклама", callback_data="ad")],
             [InlineKeyboardButton("Документальное кино", callback_data="doc")],
             [InlineKeyboardButton("Клип", callback_data="clip")],
-            [InlineKeyboardButton("Digital-контент", callback_data="digital")]
+            [InlineKeyboardButton("Digital-контент", callback_data="digital")],
+            [InlineKeyboardButton("Другое", callback_data="other_option")]
         ]
         await update.message.reply_text(
             "Что вас интересует?",
@@ -182,6 +183,7 @@ async def main():
         webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
     )
 
+nest_asyncio.apply()
+
 if __name__ == "__main__":
-    nest_asyncio.apply()
-    asyncio.get_event_loop().run_until_complete(main())
+    asyncio.run(main())
