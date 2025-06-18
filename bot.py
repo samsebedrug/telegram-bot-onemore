@@ -16,67 +16,74 @@ from telegram.ext import (
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Apply patch for nested event loop issues
+# Apply patch to allow nested event loops (especially in some hosting environments)
 nest_asyncio.apply()
 
-# Logging setup
+# Logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# States for conversation
-ASK_NAME, ASK_ROLE = range(2)
+# Telegram Bot Token
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Load credentials and authorize Google Sheets
+# Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(credentials)
 sheet = client.open("One More Bot").sheet1
 
-# Handlers
+# States
+ASK_NAME, ASK_ROLE = range(2)
+
+# Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Привет! Как тебя зовут?")
     return ASK_NAME
 
-async def ask_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["name"] = update.message.text
-    reply_keyboard = [["Дизайнер", "Креативщик", "Аккаунт"]]
+# Ask for role
+async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_name = update.message.text
+    context.user_data["name"] = user_name
+    reply_keyboard = [["Заказчик", "Исполнитель"]]
     await update.message.reply_text(
-        "Приятно познакомиться, {}!\nКакая у тебя роль?".format(context.user_data["name"]),
+        f"Приятно познакомиться, {user_name}! Кто ты?",
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
     )
     return ASK_ROLE
 
-async def save_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+# Finish conversation
+async def ask_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     role = update.message.text
     name = context.user_data["name"]
     sheet.append_row([name, role])
-    await update.message.reply_text("Спасибо! Данные сохранены.")
+    await update.message.reply_text(f"Спасибо, {name}! Ты записан как {role}.")
     return ConversationHandler.END
 
+# Cancel command
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Операция отменена.")
+    await update.message.reply_text("Диалог отменен.")
     return ConversationHandler.END
 
-# Main entry point
+# Main entry
 async def main():
-    token = os.environ.get("TELEGRAM_TOKEN")
-    if not token:
-        raise RuntimeError("Переменная окружения TELEGRAM_TOKEN не установлена.")
+    if not BOT_TOKEN:
+        raise EnvironmentError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения!")
 
-    app = ApplicationBuilder().token(token).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_role)],
-            ASK_ROLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_data)],
+            ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
+            ASK_ROLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_role)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
     app.add_handler(conv_handler)
+
     await app.run_polling()
 
 if __name__ == "__main__":
