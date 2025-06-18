@@ -1,24 +1,16 @@
-import logging
 import os
-import nest_asyncio
+import logging
 import asyncio
+import nest_asyncio
 
-from telegram import ReplyKeyboardMarkup, Update
+from telegram import ReplyKeyboardMarkup, KeyboardButton, Update, ReplyKeyboardRemove
 from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ConversationHandler,
-    ContextTypes,
+    Application, CommandHandler, MessageHandler, filters, ConversationHandler, ContextTypes
 )
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Conversation states
-ASK_NAME, ASK_ROLE = range(2)
-
-# Logging setup
+# Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
@@ -30,65 +22,16 @@ credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json
 client = gspread.authorize(credentials)
 sheet = client.open("One More Bot").sheet1
 
-# Handlers
+# Conversation states
+ROLE, NAME, CONTACT, PROJECT_TYPE, ABOUT = range(5)
+
+# Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Привет! Как тебя зовут?")
-    return ASK_NAME
+    keyboard = [["Клиент", "Соискатель", "Свой вариант"]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
 
-async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["name"] = update.message.text
-    reply_keyboard = [["Клиент", "Коуч"]]
-    await update.message.reply_text(
-        "Выбери свою роль:",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
-    )
-    return ASK_ROLE
-
-async def ask_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["role"] = update.message.text
-    sheet.append_row([context.user_data["name"], context.user_data["role"]])
-    await update.message.reply_text("Спасибо! Данные сохранены.")
-    return ConversationHandler.END
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Операция отменена.")
-    return ConversationHandler.END
-
-# Main logic
-async def main():
-    token = os.environ.get("BOT_TOKEN")
-
-    if not token:
-        logger.error("Переменная окружения BOT_TOKEN не найдена!")
-        raise RuntimeError("BOT_TOKEN не найден в переменных окружения!")
-
-    logger.info(f"BOT_TOKEN detected: {token[:10]}...")  # Безопасно обрезаем для логов
-
-    app = Application.builder().token(token).build()
-
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
-            ASK_ROLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_role)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-
-    app.add_handler(conv_handler)
-
-    # Удалим старый webhook, если был
-    await app.bot.delete_webhook(drop_pending_updates=True)
-
-    # Запуск webhook
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8443)),
-        webhook_url=f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}/"
-    )
-
-# Render-specific async support
-nest_asyncio.apply()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    welcome_text = (
+        "Добро пожаловать в One More Production!\n"
+        "Мы создаём рекламу, клипы, документальное кино и всевозможный digital-контент.\n\n"
+        "С нами просто. И точно захочется one more.\n\n"
+        "
