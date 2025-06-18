@@ -41,16 +41,16 @@ sheet = client.open("One More Bot").sheet1
 ) = range(5)
 
 # Кнопки
-
-def base_keyboard(final=False):
-    if final:
-        return InlineKeyboardMarkup([
-            [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-            [InlineKeyboardButton("🔁 Заново", callback_data="restart")]
-        ])
+def base_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
         [InlineKeyboardButton("🔁 В начало", callback_data="restart")]
+    ])
+
+def final_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
+        [InlineKeyboardButton("🔁 Заново", switch_inline_query_current_chat="/start")]
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -84,11 +84,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    raw_role = query.data
-    role_map = {"client": "клиент", "applicant": "соискатель", "other": "другое"}
-    role = role_map.get(raw_role, raw_role)
-    context.user_data["role"] = raw_role
-    context.user_data["row"] = [role, "", "", "", ""]
+    role_code = query.data
+    role_display = {"client": "клиент", "applicant": "соискатель", "other": "другое"}[role_code]
+    context.user_data["role"] = role_display
+    context.user_data["row"] = [role_display, "", "", "", ""]
     await query.edit_message_text("Как вас зовут или какую компанию вы представляете?", reply_markup=base_keyboard())
     return GET_NAME
 
@@ -105,9 +104,9 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["row"][2] = contact
     role = context.user_data["role"]
 
-    if role == "applicant" or role == "other":
+    if role == "соискатель" or role == "другое":
         await update.message.reply_text("Какова ваша роль в производстве?", reply_markup=base_keyboard())
-    elif role == "client":
+    elif role == "клиент":
         keyboard = [
             [InlineKeyboardButton("Реклама", callback_data="ad")],
             [InlineKeyboardButton("Документальное кино", callback_data="doc")],
@@ -145,34 +144,17 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     await update.message.reply_text(
         "Спасибо! Мы получили ваши данные и скоро с вами свяжемся.",
-        reply_markup=base_keyboard(final=True)
+        reply_markup=final_keyboard()
     )
     return ConversationHandler.END
 
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
-
     if update.callback_query:
         await update.callback_query.answer()
-
-    keyboard = [
-        [InlineKeyboardButton("Клиент", callback_data="client")],
-        [InlineKeyboardButton("Соискатель", callback_data="applicant")],
-        [InlineKeyboardButton("Другое", callback_data="other")]
-    ]
-
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=(
-            "Добро пожаловать в One More Production!\n\n"
-            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
-            "С нами просто. И точно захочется one more.\n\n"
-            "👇 Выберите, кто вы:"
-        ),
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-    return CHOOSE_ROLE
+        return await start(update.callback_query, context)
+    elif update.message:
+        return await start(update, context)
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
@@ -193,7 +175,10 @@ async def main():
             ],
             GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[
+            CommandHandler("cancel", cancel),
+            CallbackQueryHandler(restart, pattern="^restart$"),
+        ],
         per_chat=True,
         per_message=False,
     )
@@ -212,3 +197,4 @@ nest_asyncio.apply()
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
