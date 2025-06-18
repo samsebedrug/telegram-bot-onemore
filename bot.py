@@ -3,34 +3,32 @@ import os
 import nest_asyncio
 import asyncio
 
-from telegram import ReplyKeyboardMarkup, Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
-    filters,
-    ConversationHandler,
     ContextTypes,
+    ConversationHandler,
+    filters,
 )
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Telegram logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
+# Настройка логирования
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Conversation states
+# Состояния диалога
 ASK_NAME, ASK_ROLE = range(2)
 
-# Google Sheets setup
+# Настройка Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(credentials)
 sheet = client.open("One More Bot").sheet1
 
-# /start command handler
+# Обработчик команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Привет! Как тебя зовут?")
     return ASK_NAME
@@ -47,21 +45,24 @@ async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 # Получение роли
 async def ask_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["role"] = update.message.text
-    name = context.user_data["name"]
-    role = context.user_data["role"]
+    name = context.user_data.get("name")
+    role = update.message.text
     sheet.append_row([name, role])
     await update.message.reply_text("Спасибо! Данные сохранены.")
     return ConversationHandler.END
 
-# Отмена
+# Обработка отмены
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
-# Основная логика бота
-async def main() -> None:
-    application = Application.builder().token(os.getenv("BOT_TOKEN")).build()
+# Основной запуск через webhook
+async def main():
+    bot_token = os.getenv("BOT_TOKEN")
+    port = int(os.getenv("PORT", "10000"))
+    webhook_url = f"{os.getenv('RENDER_EXTERNAL_URL')}/webhook"
+
+    application = Application.builder().token(bot_token).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -74,9 +75,16 @@ async def main() -> None:
 
     application.add_handler(conv_handler)
 
-    await application.run_polling()
+    # Запуск webhook
+    await application.bot.set_webhook(webhook_url)
+    await application.start()
+    await application.updater.start_webhook(
+        listen="0.0.0.0",
+        port=port,
+        url_path="webhook",
+        webhook_url=webhook_url,
+    )
 
-# Для Render / Nest-совместимых окружений
 nest_asyncio.apply()
 
 if __name__ == "__main__":
