@@ -136,14 +136,27 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if update.callback_query:
         await update.callback_query.answer()
-        # создаём фейковый update с message, чтобы start() работал
-        fake_update = Update(
-            update.update_id,
-            message=update.callback_query.message
-        )
-        return await start(fake_update, context)
+        await update.callback_query.message.reply_text("Вы вернулись в начало. 👇 Выберите, кто вы:")
     elif update.message:
-        return await start(update, context)
+        await update.message.reply_text("Вы вернулись в начало. 👇 Выберите, кто вы:")
+
+    keyboard = [
+        [InlineKeyboardButton("Клиент", callback_data="client")],
+        [InlineKeyboardButton("Соискатель", callback_data="applicant")],
+        [InlineKeyboardButton("Другое", callback_data="other")]
+    ]
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            "Добро пожаловать в One More Production!\n\n"
+            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
+            "С нами просто. И точно захочется one more.\n\n"
+            "👇 Выберите, кто вы:"
+        ),
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return CHOOSE_ROLE
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
@@ -169,6 +182,7 @@ async def main():
     )
 
     app.add_handler(conv_handler)
+    app.add_handler(CommandHandler("start", start))  # добавлено для обработки повторного /start
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
     await app.bot.delete_webhook(drop_pending_updates=True)
