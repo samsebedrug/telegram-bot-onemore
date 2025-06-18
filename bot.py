@@ -1,170 +1,163 @@
-import os
 import logging
-import asyncio
+import os
 import nest_asyncio
+import asyncio
 
 from telegram import (
-    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
+    Update,
 )
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
-    ConversationHandler,
     CallbackQueryHandler,
-    filters,
+    ConversationHandler,
     ContextTypes,
+    filters,
 )
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Логирование
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Ступени диалога
+(
+    CHOOSING_STATUS,
+    ASK_NAME,
+    ASK_CONTACT,
+    ASK_ROLE_OR_TYPE,
+    ASK_DESCRIPTION,
+) = range(5)
 
-# Google Sheets
+# Таблица
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(credentials)
 sheet = client.open("One More Bot").sheet1
 
-# Состояния
-(
-    CHOOSE_ROLE,
-    GET_NAME,
-    GET_CONTACT,
-    GET_POSITION,
-    GET_DETAILS
-) = range(5)
+# Логгер
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Кнопки
-def base_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-        [InlineKeyboardButton("🔁 В начало", callback_data="restart")]
-    ])
+def get_main_keyboard():
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🔁 В начало", callback_data="restart")],
+            [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
+        ]
+    )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
+    context.user_data["data"] = ["", "", "", "", ""]
     keyboard = [
         [InlineKeyboardButton("Клиент", callback_data="client")],
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
-        [InlineKeyboardButton("Другое", callback_data="other")]
+        [InlineKeyboardButton("Другое", callback_data="other")],
     ]
     await update.message.reply_text(
-        "Добро пожаловать в One More Production!\n\n"
+        "Добро пожаловать в One More Production!\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
         "С нами просто. И точно захочется one more.\n\n"
         "👇 Выберите, кто вы:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard + get_main_keyboard().inline_keyboard),
     )
-    return CHOOSE_ROLE
+    return CHOOSING_STATUS
 
-async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    role = query.data
-    context.user_data["role"] = role
-    context.user_data["row"] = [role, "", "", "", ""]  # Структура: role, name, contact, position, details
-    await query.edit_message_text("Как вас зовут или какую компанию вы представляете?", reply_markup=base_keyboard())
-    return GET_NAME
+    choice = query.data
 
-async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    name = update.message.text
-    context.user_data["name"] = name
-    context.user_data["row"][1] = name
-    await update.message.reply_text("Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram).", reply_markup=base_keyboard())
-    return GET_CONTACT
-
-async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    contact = update.message.text
-    context.user_data["contact"] = contact
-    context.user_data["row"][2] = contact
-    role = context.user_data["role"]
-
-    if role == "applicant" or role == "other":
-        await update.message.reply_text("Какова ваша роль в производстве?", reply_markup=base_keyboard())
-    elif role == "client":
-        keyboard = [
-            [InlineKeyboardButton("Реклама", callback_data="ad")],
-            [InlineKeyboardButton("Документальное кино", callback_data="doc")],
-            [InlineKeyboardButton("Клип", callback_data="clip")],
-            [InlineKeyboardButton("Digital-контент", callback_data="digital")]
-        ]
-        await update.message.reply_text(
-            "Что вас интересует?",
-            reply_markup=InlineKeyboardMarkup(keyboard + base_keyboard().inline_keyboard)
-        )
-    else:
-        return GET_DETAILS
-
-    return GET_POSITION
-
-async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    role = context.user_data["role"]
-
-    if update.callback_query:
-        await update.callback_query.answer()
-        position = update.callback_query.data
-        await update.callback_query.edit_message_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
-    else:
-        position = update.message.text
-        await update.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
-
-    context.user_data["position"] = position
-    context.user_data["row"][3] = position
-    return GET_DETAILS
-
-async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    details = update.message.text
-    context.user_data["details"] = details
-    context.user_data["row"][4] = details
-
-    sheet.append_row(context.user_data["row"])
-
-    await update.message.reply_text(
-        "Спасибо! Мы получили ваши данные и скоро с вами свяжемся.",
-        reply_markup=base_keyboard()
-    )
-    return ConversationHandler.END
-
-async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data.clear()
-    if update.callback_query:
-        await update.callback_query.answer()
-        await update.callback_query.edit_message_text("Вы вернулись в начало. 👇 Выберите, кто вы:")
-        return await start(update.callback_query, context)
-    else:
+    if choice == "restart":
+        context.user_data.clear()
         return await start(update, context)
 
+    context.user_data["data"][0] = {"client": "Клиент", "applicant": "Соискатель", "other": "Другое"}.get(choice, "")
+    await query.edit_message_text("Как вас зовут или какую компанию вы представляете?", reply_markup=get_main_keyboard())
+    return ASK_NAME
+
+async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["data"][1] = update.message.text
+    await update.message.reply_text("Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram)", reply_markup=get_main_keyboard())
+    return ASK_CONTACT
+
+async def ask_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["data"][2] = update.message.text
+    role = context.user_data["data"][0]
+
+    if role == "Соискатель":
+        await update.message.reply_text("Какую роль в производстве вы ищете?", reply_markup=get_main_keyboard())
+    elif role == "Клиент":
+        keyboard = [
+            [InlineKeyboardButton("Реклама", callback_data="ads")],
+            [InlineKeyboardButton("Документальное кино", callback_data="doc")],
+            [InlineKeyboardButton("Клип", callback_data="clip")],
+            [InlineKeyboardButton("Digital-контент", callback_data="digital")],
+        ]
+        await update.message.reply_text("Выберите интересующий тип проекта или напишите свой вариант:", reply_markup=InlineKeyboardMarkup(keyboard + get_main_keyboard().inline_keyboard))
+    else:
+        await update.message.reply_text("Расскажите немного о себе", reply_markup=get_main_keyboard())
+
+    return ASK_ROLE_OR_TYPE
+
+async def ask_role_or_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.callback_query:
+        await update.callback_query.answer()
+        text = update.callback_query.data
+        mapping = {
+            "ads": "Реклама",
+            "doc": "Документальное кино",
+            "clip": "Клип",
+            "digital": "Digital-контент"
+        }
+        context.user_data["data"][3] = mapping.get(text, text)
+        await update.callback_query.edit_message_text("Расскажите подробнее о вашем запросе", reply_markup=get_main_keyboard())
+    else:
+        context.user_data["data"][3] = update.message.text
+        await update.message.reply_text("Расскажите подробнее о вашем запросе", reply_markup=get_main_keyboard())
+    return ASK_DESCRIPTION
+
+async def ask_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["data"][4] = update.message.text
+    sheet.append_row(context.user_data["data"])
+    await update.message.reply_text("Спасибо! Мы скоро с вами свяжемся.", reply_markup=get_main_keyboard())
+    return ConversationHandler.END
+
+async def fallback_restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data.clear()
+    return await start(update, context)
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("Диалог завершён.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 async def main():
-    app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
+    token = os.environ["BOT_TOKEN"]
+    app = Application.builder().token(token).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            CHOOSE_ROLE: [CallbackQueryHandler(choose_role)],
-            GET_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-            GET_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact)],
-            GET_POSITION: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_position),
-                CallbackQueryHandler(get_position)
+            CHOOSING_STATUS: [CallbackQueryHandler(button_handler)],
+            ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
+            ASK_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_contact)],
+            ASK_ROLE_OR_TYPE: [
+                CallbackQueryHandler(ask_role_or_type),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, ask_role_or_type),
             ],
-            GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
+            ASK_DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_description)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[
+            CommandHandler("start", fallback_restart),
+            CallbackQueryHandler(fallback_restart, pattern="^restart$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, fallback_restart),
+        ],
     )
 
     app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_webhook(
@@ -173,7 +166,7 @@ async def main():
         webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
     )
 
+# Render fix
 nest_asyncio.apply()
-
 if __name__ == "__main__":
     asyncio.run(main())
