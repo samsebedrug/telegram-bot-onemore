@@ -178,11 +178,10 @@ async def main():
             GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
-        per_message=True,
+        per_message=False,
     )
 
     app.add_handler(conv_handler)
-    app.add_handler(CommandHandler("start", start))  # добавлено для обработки повторного /start
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
     await app.bot.delete_webhook(drop_pending_updates=True)
@@ -195,4 +194,5 @@ async def main():
 nest_asyncio.apply()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
