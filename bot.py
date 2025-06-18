@@ -49,28 +49,25 @@ def base_keyboard():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
+
     keyboard = [
         [InlineKeyboardButton("Клиент", callback_data="client")],
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
 
-    if isinstance(update, Update) and update.message:
-        await update.message.reply_text(
-            "Добро пожаловать в One More Production!\n\n"
-            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
-            "С нами просто. И точно захочется one more.\n\n"
-            "👇 Выберите, кто вы:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+    text = (
+        "Добро пожаловать в One More Production!\n\n"
+        "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
+        "С нами просто. И точно захочется one more.\n\n"
+        "👇 Выберите, кто вы:"
+    )
+
+    if update.message:
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
     elif update.callback_query:
-        await update.callback_query.edit_message_text(
-            "Добро пожаловать в One More Production!\n\n"
-            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
-            "С нами просто. И точно захочется one more.\n\n"
-            "👇 Выберите, кто вы:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard))
 
     return CHOOSE_ROLE
 
@@ -144,12 +141,7 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
-
-    if update.callback_query:
-        await update.callback_query.answer()
-        return await start(update.callback_query, context)
-    elif update.message:
-        return await start(update, context)
+    return await start(update, context)
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
