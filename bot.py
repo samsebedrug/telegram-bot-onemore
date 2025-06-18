@@ -1,12 +1,11 @@
 import logging
 import os
-import nest_asyncio
 import asyncio
+import nest_asyncio
 
 from telegram import (
     Update,
     ReplyKeyboardMarkup,
-    KeyboardButton,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
@@ -14,90 +13,96 @@ from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
-    filters,
+    CallbackQueryHandler,
     ConversationHandler,
     ContextTypes,
+    filters,
 )
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Этапы диалога
-ASK_ROLE, ASK_NAME, ASK_CONTACT, ASK_ABOUT = range(4)
-
+# Логирование
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Google Sheets setup
+# Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-client = gspread.authorize(credentials)
-sheet = client.open("One More Bot").sheet1
+sheet = gspread.authorize(credentials).open("One More Bot").sheet1
 
-# Клавиатура с ссылкой и возвратом
-def base_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-        [InlineKeyboardButton("🔁 В начало", callback_data="restart")]
-    ])
+# Этапы
+ASK_ROLE, ASK_NAME, ASK_CONTACT, ASK_ABOUT = range(4)
 
-# Команда /start
+# Кнопки
+main_keyboard = ReplyKeyboardMarkup(
+    [["Клиент", "Соискатель"]], resize_keyboard=True, one_time_keyboard=True
+)
+site_button = InlineKeyboardButton("На сайт", url="https://onemorepro.com")
+restart_button = InlineKeyboardButton("В начало", callback_data="start_over")
+inline_markup = InlineKeyboardMarkup([[site_button], [restart_button]])
+
+
+# Хэндлеры
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [["Клиент", "Соискатель"]]
     await update.message.reply_text(
         "Добро пожаловать в One More Production!\n"
         "Мы создаём рекламу, клипы, документальное кино и всевозможный digital-контент.\n\n"
         "С нами просто. И точно захочется one more.\n\n"
         "👇 Выберите, кто вы (или напишите свой вариант):",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        reply_markup=main_keyboard,
     )
     return ASK_ROLE
 
-# Роль: Клиент / Соискатель / Свой вариант
+
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["role"] = update.message.text
-    await update.message.reply_text("Как вас зовут?", reply_markup=base_keyboard())
+    await update.message.reply_text("Как вас зовут?")
     return ASK_NAME
+
 
 async def ask_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["name"] = update.message.text
-    await update.message.reply_text("Оставьте, пожалуйста, контакт (телефон или Telegram):", reply_markup=base_keyboard())
+    await update.message.reply_text("Как с вами связаться?")
     return ASK_CONTACT
+
 
 async def ask_about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["contact"] = update.message.text
-    role = context.user_data.get("role", "").lower()
-    if role == "клиент":
-        sheet.append_row([context.user_data["role"], context.user_data["name"], context.user_data["contact"], ""])
-        await update.message.reply_text("Спасибо! Мы с вами свяжемся.", reply_markup=base_keyboard())
-        return ConversationHandler.END
-    else:
-        await update.message.reply_text("Расскажите немного о себе и что вы ищете:", reply_markup=base_keyboard())
-        return ASK_ABOUT
+    await update.message.reply_text("Расскажите немного о себе или о вашем запросе.")
+    return ASK_ABOUT
+
 
 async def save_and_thank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["about"] = update.message.text
     sheet.append_row([
-        context.user_data["role"],
-        context.user_data["name"],
-        context.user_data["contact"],
-        context.user_data["about"]
+        context.user_data.get("role", ""),
+        context.user_data.get("name", ""),
+        context.user_data.get("contact", ""),
+        context.user_data.get("about", "")
     ])
-    await update.message.reply_text("Спасибо! Мы изучим вашу информацию и свяжемся при возможности.", reply_markup=base_keyboard())
+    await update.message.reply_text(
+        "Спасибо! Мы получили вашу информацию и свяжемся с вами.",
+        reply_markup=inline_markup,
+    )
     return ConversationHandler.END
+
 
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.message.reply_text("Начнём сначала.")
-    return await start(query, context)
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.message.delete()
+        await start(update.callback_query, context)
+    return ASK_ROLE
+
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Диалог отменён.", reply_markup=base_keyboard())
+    await update.message.reply_text("Действие отменено.", reply_markup=inline_markup)
     return ConversationHandler.END
 
+
+# Основная функция
 async def main():
-    token = os.environ["BOT_TOKEN"]
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -111,9 +116,7 @@ async def main():
     )
 
     app.add_handler(conv_handler)
-    app.add_handler(MessageHandler(filters.Regex("🔁 В начало"), start))
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.ALL & filters.UpdateType.CALLBACK_QUERY, restart))
+    app.add_handler(CallbackQueryHandler(restart, pattern="start_over"))
 
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_webhook(
@@ -122,6 +125,8 @@ async def main():
         webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
     )
 
+
+# Для Render
 nest_asyncio.apply()
 if __name__ == "__main__":
     asyncio.run(main())
