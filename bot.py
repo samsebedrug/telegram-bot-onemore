@@ -3,7 +3,13 @@ import os
 import nest_asyncio
 import asyncio
 
-from telegram import ReplyKeyboardMarkup, KeyboardButton, Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import (
+    Update,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -15,93 +21,82 @@ from telegram.ext import (
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Состояния
-ASK_ROLE, ASK_NAME, ASK_CONTACT, ASK_INFO = range(4)
+# Этапы диалога
+ASK_ROLE, ASK_NAME, ASK_CONTACT, ASK_ABOUT = range(4)
 
-# Логгирование
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Google Sheets
+# Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(credentials)
 sheet = client.open("One More Bot").sheet1
 
-# Приветствие
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    keyboard = [
-        [KeyboardButton("Клиент"), KeyboardButton("Соискатель")],
-    ]
+# Клавиатура с ссылкой и возвратом
+def base_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
+        [InlineKeyboardButton("🔁 В начало", callback_data="restart")]
+    ])
+
+# Команда /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [["Клиент", "Соискатель"]]
     await update.message.reply_text(
         "Добро пожаловать в One More Production!\n"
         "Мы создаём рекламу, клипы, документальное кино и всевозможный digital-контент.\n\n"
         "С нами просто. И точно захочется one more.\n\n"
         "👇 Выберите, кто вы (или напишите свой вариант):",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True),
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     )
     return ASK_ROLE
 
-# Ответ на выбор роли
-async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+# Роль: Клиент / Соискатель / Свой вариант
+async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["role"] = update.message.text
-    await update.message.reply_text("Как вас зовут?")
+    await update.message.reply_text("Как вас зовут?", reply_markup=base_keyboard())
     return ASK_NAME
 
-async def ask_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def ask_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["name"] = update.message.text
-    await update.message.reply_text("Пожалуйста, укажите ваш контакт (телефон, email, Telegram и т.п.):")
+    await update.message.reply_text("Оставьте, пожалуйста, контакт (телефон или Telegram):", reply_markup=base_keyboard())
     return ASK_CONTACT
 
-async def ask_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def ask_about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["contact"] = update.message.text
-    role = context.user_data["role"].lower()
-
+    role = context.user_data.get("role", "").lower()
     if role == "клиент":
-        keyboard = [
-            ["Реклама", "Клип"],
-            ["Документальный проект", "Другое"]
-        ]
-        await update.message.reply_text(
-            "Что вас интересует?",
-            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True),
-        )
+        sheet.append_row([context.user_data["role"], context.user_data["name"], context.user_data["contact"], ""])
+        await update.message.reply_text("Спасибо! Мы с вами свяжемся.", reply_markup=base_keyboard())
+        return ConversationHandler.END
     else:
-        await update.message.reply_text("Напишите пару слов о себе и ваш запрос.")
-    return ASK_INFO
+        await update.message.reply_text("Расскажите немного о себе и что вы ищете:", reply_markup=base_keyboard())
+        return ASK_ABOUT
 
-async def save_and_thank(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    role = context.user_data.get("role", "")
-    name = context.user_data.get("name", "")
-    contact = context.user_data.get("contact", "")
-    info = update.message.text
-
-    sheet.append_row([role, name, contact, info])
-
-    keyboard = [
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-        [KeyboardButton("🔁 В начало")]
-    ]
-
-    await update.message.reply_text(
-        "Спасибо! Мы свяжемся с вами в ближайшее время.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+async def save_and_thank(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["about"] = update.message.text
+    sheet.append_row([
+        context.user_data["role"],
+        context.user_data["name"],
+        context.user_data["contact"],
+        context.user_data["about"]
+    ])
+    await update.message.reply_text("Спасибо! Мы изучим вашу информацию и свяжемся при возможности.", reply_markup=base_keyboard())
     return ConversationHandler.END
 
-async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await start(update, context)
+async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text("Начнём сначала.")
+    return await start(query, context)
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Операция отменена.")
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Диалог отменён.", reply_markup=base_keyboard())
     return ConversationHandler.END
 
-# Основной запуск
 async def main():
-    token = os.getenv("BOT_TOKEN")
-    logger.info("BOT_TOKEN detected: %s", token[:10] + "..." if token else "None")
+    token = os.environ["BOT_TOKEN"]
     app = Application.builder().token(token).build()
 
     conv_handler = ConversationHandler(
@@ -109,17 +104,16 @@ async def main():
         states={
             ASK_ROLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
             ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_contact)],
-            ASK_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_info)],
-            ASK_INFO: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_and_thank)],
+            ASK_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_about)],
+            ASK_ABOUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_and_thank)],
         },
-        fallbacks=[
-            CommandHandler("start", restart),
-            MessageHandler(filters.Regex("^(🔁 В начало)$"), restart),
-            CommandHandler("cancel", cancel),
-        ],
+        fallbacks=[CommandHandler("cancel", cancel)],
     )
 
     app.add_handler(conv_handler)
+    app.add_handler(MessageHandler(filters.Regex("🔁 В начало"), start))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.ALL & filters.UpdateType.CALLBACK_QUERY, restart))
 
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_webhook(
