@@ -56,18 +56,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
 
-    text = (
-        "Добро пожаловать в One More Production!\n\n"
-        "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
-        "С нами просто. И точно захочется one more.\n\n"
-        "👇 Выберите, кто вы:"
-    )
-
     if update.message:
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text(
+            "Добро пожаловать в One More Production!\n\n"
+            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
+            "С нами просто. И точно захочется one more.\n\n"
+            "👇 Выберите, кто вы:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
     elif update.callback_query:
-        await update.callback_query.answer()
-        await update.callback_query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.callback_query.message.reply_text(
+            "Добро пожаловать в One More Production!\n\n"
+            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
+            "С нами просто. И точно захочется one more.\n\n"
+            "👇 Выберите, кто вы:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
     return CHOOSE_ROLE
 
@@ -144,27 +148,9 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.message.reply_text("Вы вернулись в начало. 👇 Выберите, кто вы:")
+        return await start(update.callback_query, context)
     elif update.message:
-        await update.message.reply_text("Вы вернулись в начало. 👇 Выберите, кто вы:")
-
-    keyboard = [
-        [InlineKeyboardButton("Клиент", callback_data="client")],
-        [InlineKeyboardButton("Соискатель", callback_data="applicant")],
-        [InlineKeyboardButton("Другое", callback_data="other")]
-    ]
-
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=(
-            "Добро пожаловать в One More Production!\n\n"
-            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n\n"
-            "С нами просто. И точно захочется one more.\n\n"
-            "👇 Выберите, кто вы:"
-        ),
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-    return CHOOSE_ROLE
+        return await start(update, context)
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
@@ -186,7 +172,8 @@ async def main():
             GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
-        per_message=True,
+        per_chat=True,
+        per_message=False,
     )
 
     app.add_handler(conv_handler)
