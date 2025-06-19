@@ -2,7 +2,6 @@ import os
 import logging
 import asyncio
 import nest_asyncio
-
 from telegram import (
     Update,
     ReplyKeyboardRemove,
@@ -20,6 +19,7 @@ from telegram.ext import (
 )
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from aiohttp import web  # Для эндпоинта /healthz
 
 # Логирование
 logging.basicConfig(level=logging.INFO)
@@ -48,13 +48,11 @@ def base_keyboard():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
-
     keyboard = [
         [InlineKeyboardButton("Клиент", callback_data="client")],
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
-
     welcome_text = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
@@ -62,12 +60,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "Воспользуйтесь нашим telegram-ботом или напишите нам на почту weare@onemorepro.com\n\n"
         "👇 Выберите, кто вы:"
     )
-
     if update.message:
         await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
     elif update.callback_query:
         await update.callback_query.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
-
     return CHOOSE_ROLE
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -93,7 +89,6 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["contact"] = contact
     context.user_data["row"][2] = contact
     role = context.user_data["role"]
-
     if role == "applicant" or role == "other":
         await update.message.reply_text("Какова ваша роль в производстве?", reply_markup=base_keyboard())
     elif role == "client":
@@ -102,7 +97,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Документальное кино", callback_data="doc")],
             [InlineKeyboardButton("Клип", callback_data="clip")],
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
-            [InlineKeyboardButton("Другое", callback_data="other_service")]
+            [InlineKeyboardButton("Другое", callback_data="other_interest")]
         ]
         await update.message.reply_text(
             "Что вас интересует?",
@@ -110,7 +105,6 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         )
     else:
         return GET_DETAILS
-
     return GET_POSITION
 
 async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -121,7 +115,6 @@ async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     else:
         position = update.message.text
         await update.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
-
     context.user_data["position"] = position
     context.user_data["row"][3] = position
     return GET_DETAILS
@@ -130,9 +123,7 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     details = update.message.text
     context.user_data["details"] = details
     context.user_data["row"][4] = details
-
     sheet.append_row(context.user_data["row"])
-
     await update.message.reply_text(
         "Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\n"
         "Для повторного запуска бота введите команду /start",
@@ -150,9 +141,11 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
+async def healthz_handler(request):
+    return web.Response(text="OK")
+
 async def main():
     app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
-
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -172,15 +165,19 @@ async def main():
         per_chat=True,
         per_message=False,
     )
-
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
+
+    # aiohttp WebApp with healthz
+    web_app = web.Application()
+    web_app.router.add_get("/healthz", healthz_handler)
 
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
-        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
+        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/",
+        web_app=web_app
     )
 
 nest_asyncio.apply()
