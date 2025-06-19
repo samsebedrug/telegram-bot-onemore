@@ -2,7 +2,6 @@ import os
 import logging
 import asyncio
 import nest_asyncio
-from aiohttp import web  # health check
 
 from telegram import (
     Update,
@@ -103,7 +102,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Документальное кино", callback_data="doc")],
             [InlineKeyboardButton("Клип", callback_data="clip")],
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
-            [InlineKeyboardButton("Другое", callback_data="other_interest")]
+            [InlineKeyboardButton("Другое", callback_data="other_service")]
         ]
         await update.message.reply_text(
             "Что вас интересует?",
@@ -151,9 +150,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-async def healthz(_: web.Request) -> web.Response:
-    return web.Response(text="ok")
-
 async def main():
     app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
 
@@ -180,16 +176,11 @@ async def main():
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
-    # health check
-    web_app = web.Application()
-    web_app.router.add_get("/healthz", healthz)
-
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
-        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/",
-        web_app=web_app
+        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
     )
 
 nest_asyncio.apply()
