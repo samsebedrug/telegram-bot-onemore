@@ -3,6 +3,7 @@ import logging
 import asyncio
 import nest_asyncio
 
+from fastapi import FastAPI
 from telegram import (
     Update,
     ReplyKeyboardRemove,
@@ -41,7 +42,6 @@ sheet = client.open("One More Bot").sheet1
 ) = range(5)
 
 # Кнопки
-
 def base_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]
@@ -103,7 +103,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Документальное кино", callback_data="doc")],
             [InlineKeyboardButton("Клип", callback_data="clip")],
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
-            [InlineKeyboardButton("Другое", callback_data="other_interest")],
+            [InlineKeyboardButton("Другое", callback_data="other_client")]
         ]
         await update.message.reply_text(
             "Что вас интересует?",
@@ -151,6 +151,12 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
+web_app = FastAPI()
+
+@web_app.get("/healthz")
+async def health_check():
+    return {"status": "ok"}
+
 async def main():
     app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
 
@@ -181,7 +187,8 @@ async def main():
     await app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
-        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
+        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/",
+        web_app=web_app
     )
 
 nest_asyncio.apply()
