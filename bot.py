@@ -44,7 +44,7 @@ sheet = client.open("One More Bot").sheet1
 def base_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-        [InlineKeyboardButton("📧 Написать на почту", url="mailto:weare@onemorepro.com")]
+        [InlineKeyboardButton("📧 Email: weare@onemorepro.com", callback_data="email_display")]
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -61,7 +61,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
         "С нами просто и точно захочется one more.\n\n"
         "Воспользуйтесь нашим telegram-ботом или напишите нам на почту weare@onemorepro.com\n\n"
-        "👇 Выберите, кто вы:"
+        "🔻 Выберите, кто вы:"
     )
 
     if update.message:
@@ -141,6 +141,14 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     )
     return ConversationHandler.END
 
+async def show_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(
+        "📧 Наша почта: weare@onemorepro.com",
+        reply_markup=base_keyboard()
+    )
+
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     if update.callback_query:
@@ -176,6 +184,7 @@ async def main():
 
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
+    app.add_handler(CallbackQueryHandler(show_email, pattern="^email_display$"))
 
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_webhook(
