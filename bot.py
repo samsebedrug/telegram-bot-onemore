@@ -20,19 +20,18 @@ from telegram.ext import (
 )
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from aiohttp import web  # For health check endpoint
 
-# Logging
+# Логирование
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Google Sheets setup
+# Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(credentials)
 sheet = client.open("One More Bot").sheet1
 
-# Conversation states
+# Состояния
 (
     CHOOSE_ROLE,
     GET_NAME,
@@ -41,13 +40,13 @@ sheet = client.open("One More Bot").sheet1
     GET_DETAILS
 ) = range(5)
 
-# Buttons
+# Кнопки
 def base_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]
+        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
+        [InlineKeyboardButton("📧 Написать на почту", url="mailto:weare@onemorepro.com")]
     ])
 
-# Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
 
@@ -104,7 +103,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Документальное кино", callback_data="doc")],
             [InlineKeyboardButton("Клип", callback_data="clip")],
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
-            [InlineKeyboardButton("Другое", callback_data="other_interest")],
+            [InlineKeyboardButton("Другое", callback_data="other_interest")]
         ]
         await update.message.reply_text(
             "Что вас интересует?",
@@ -152,9 +151,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-async def health_check(request):
-    return web.Response(text="OK")
-
 async def main():
     app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
 
@@ -181,16 +177,11 @@ async def main():
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
-    # Create aiohttp app and add health check route
-    web_app = web.Application()
-    web_app.router.add_get("/health", health_check)
-
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
-        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/",
-        web_app=web_app
+        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
     )
 
 nest_asyncio.apply()
