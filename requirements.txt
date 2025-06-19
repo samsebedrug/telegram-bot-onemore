@@ -2,3 +2,4 @@ python-telegram-bot[webhooks]==20.0
 gspread
 oauth2client
 nest_asyncio
+aiohttp
