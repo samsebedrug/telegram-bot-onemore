@@ -41,10 +41,10 @@ sheet = client.open("One More Bot").sheet1
 ) = range(5)
 
 # Кнопки
+
 def base_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-        [InlineKeyboardButton("📧 Email: weare@onemorepro.com", callback_data="email_display")]
+        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -61,7 +61,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
         "С нами просто и точно захочется one more.\n\n"
         "Воспользуйтесь нашим telegram-ботом или напишите нам на почту weare@onemorepro.com\n\n"
-        "🔻 Выберите, кто вы:"
+        "👇 Выберите, кто вы:"
     )
 
     if update.message:
@@ -103,7 +103,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Документальное кино", callback_data="doc")],
             [InlineKeyboardButton("Клип", callback_data="clip")],
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
-            [InlineKeyboardButton("Другое", callback_data="other_interest")]
+            [InlineKeyboardButton("Другое", callback_data="other_interest")],
         ]
         await update.message.reply_text(
             "Что вас интересует?",
@@ -141,14 +141,6 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     )
     return ConversationHandler.END
 
-async def show_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.edit_message_text(
-        "📧 Наша почта: weare@onemorepro.com",
-        reply_markup=base_keyboard()
-    )
-
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     if update.callback_query:
@@ -184,7 +176,6 @@ async def main():
 
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
-    app.add_handler(CallbackQueryHandler(show_email, pattern="^email_display$"))
 
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_webhook(
