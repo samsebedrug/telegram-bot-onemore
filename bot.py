@@ -54,14 +54,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
-    await update.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
-    await update.message.reply_text(
+    welcome_text = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
         "С нами просто и точно захочется one more.\n\n"
-        "👇 Выберите, кто вы:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        "👇 Выберите, кто вы:"
     )
+    if update.message:
+        await update.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
+        await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    elif update.callback_query:
+        await update.callback_query.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
+        await update.callback_query.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
     return CHOOSE_ROLE
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -73,7 +77,7 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["role"] = raw_role
     context.user_data["row"] = [role, "", "", "", ""]
     await query.message.reply_photo("https://onemorepro.com/images/12.jpg")
-    await query.edit_message_text("Как вас зовут или какую компанию вы представляете?", reply_markup=base_keyboard())
+    await query.message.reply_text("Напишите, пожалуйста, ваше имя или название компании, которую вы представляете", reply_markup=base_keyboard())
     return GET_NAME
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -89,8 +93,8 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["contact"] = contact
     context.user_data["row"][2] = contact
     role = context.user_data["role"]
-    await update.message.reply_photo("https://onemorepro.com/images/3.jpg")
     if role in ["applicant", "other"]:
+        await update.message.reply_photo("https://onemorepro.com/images/3.jpg")
         await update.message.reply_text("Какова ваша роль в производстве?", reply_markup=base_keyboard())
     elif role == "client":
         keyboard = [
@@ -100,6 +104,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
             [InlineKeyboardButton("Другое", callback_data="other")]
         ]
+        await update.message.reply_photo("https://onemorepro.com/images/3.jpg")
         await update.message.reply_text(
             "Что вас интересует?",
             reply_markup=InlineKeyboardMarkup(keyboard + list(base_keyboard().inline_keyboard))
@@ -109,13 +114,14 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return GET_POSITION
 
 async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_photo("https://onemorepro.com/images/6.jpg")
     if update.callback_query:
         await update.callback_query.answer()
         position = update.callback_query.data
-        await update.callback_query.edit_message_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
+        await update.callback_query.message.reply_photo("https://onemorepro.com/images/6.jpg")
+        await update.callback_query.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
     else:
         position = update.message.text
+        await update.message.reply_photo("https://onemorepro.com/images/6.jpg")
         await update.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
     context.user_data["position"] = position
     context.user_data["row"][3] = position
@@ -197,7 +203,7 @@ async def main():
     await app.start()
 
     logger.info("Bot is running...")
-    await asyncio.Event().wait()
+    await asyncio.Event().wait()  # run forever
 
 nest_asyncio.apply()
 
