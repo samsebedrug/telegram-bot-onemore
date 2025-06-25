@@ -141,14 +141,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-async def get_photo_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    photo = update.message.photo[-1]
-    file_id = photo.file_id
-    await update.message.reply_text(
-        f"file_id этого изображения: `{file_id}`",
-        parse_mode="Markdown"
-    )
-
 async def healthz(request):
     return web.Response(text="ok")
 
@@ -182,7 +174,6 @@ async def main():
 
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
-    app.add_handler(MessageHandler(filters.PHOTO, get_photo_id))  # Новый обработчик
 
     await app.initialize()
     await app.bot.delete_webhook(drop_pending_updates=True)
@@ -201,9 +192,10 @@ async def main():
     await site.start()
 
     await app.start()
-    await app.updater.start_polling()
+    await app.updater.start_polling()  # required to process updates
+
     logger.info("Bot is running...")
-    await asyncio.Event().wait()
+    await asyncio.Event().wait()  # run forever
 
 nest_asyncio.apply()
 

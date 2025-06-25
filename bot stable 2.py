@@ -2,7 +2,6 @@ import os
 import logging
 import asyncio
 import nest_asyncio
-from aiohttp import web
 
 from telegram import (
     Update,
@@ -16,8 +15,8 @@ from telegram.ext import (
     MessageHandler,
     ConversationHandler,
     CallbackQueryHandler,
-    ContextTypes,
     filters,
+    ContextTypes,
 )
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -49,21 +48,26 @@ def base_keyboard():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
+
     keyboard = [
         [InlineKeyboardButton("Клиент", callback_data="client")],
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
+
     welcome_text = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
         "С нами просто и точно захочется one more.\n\n"
+        "Воспользуйтесь нашим telegram-ботом или напишите нам на почту weare@onemorepro.com\n\n"
         "👇 Выберите, кто вы:"
     )
+
     if update.message:
         await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
     elif update.callback_query:
         await update.callback_query.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
+
     return CHOOSE_ROLE
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -89,7 +93,8 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["contact"] = contact
     context.user_data["row"][2] = contact
     role = context.user_data["role"]
-    if role in ["applicant", "other"]:
+
+    if role == "applicant" or role == "other":
         await update.message.reply_text("Какова ваша роль в производстве?", reply_markup=base_keyboard())
     elif role == "client":
         keyboard = [
@@ -97,7 +102,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Документальное кино", callback_data="doc")],
             [InlineKeyboardButton("Клип", callback_data="clip")],
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
-            [InlineKeyboardButton("Другое", callback_data="other")]
+            [InlineKeyboardButton("Другое", callback_data="other_service")]
         ]
         await update.message.reply_text(
             "Что вас интересует?",
@@ -105,6 +110,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         )
     else:
         return GET_DETAILS
+
     return GET_POSITION
 
 async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -115,6 +121,7 @@ async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     else:
         position = update.message.text
         await update.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
+
     context.user_data["position"] = position
     context.user_data["row"][3] = position
     return GET_DETAILS
@@ -123,7 +130,9 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     details = update.message.text
     context.user_data["details"] = details
     context.user_data["row"][4] = details
+
     sheet.append_row(context.user_data["row"])
+
     await update.message.reply_text(
         "Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\n"
         "Для повторного запуска бота введите команду /start",
@@ -140,22 +149,6 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
-
-async def get_photo_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    photo = update.message.photo[-1]
-    file_id = photo.file_id
-    await update.message.reply_text(
-        f"file_id этого изображения: `{file_id}`",
-        parse_mode="Markdown"
-    )
-
-async def healthz(request):
-    return web.Response(text="ok")
-
-async def webhook_handler(request):
-    update = await request.json()
-    await request.app["application"].process_update(Update.de_json(update, request.app["application"].bot))
-    return web.Response()
 
 async def main():
     app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
@@ -182,28 +175,13 @@ async def main():
 
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
-    app.add_handler(MessageHandler(filters.PHOTO, get_photo_id))  # Новый обработчик
 
-    await app.initialize()
     await app.bot.delete_webhook(drop_pending_updates=True)
-    await app.bot.set_webhook(url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/webhook")
-
-    web_app = web.Application()
-    web_app["application"] = app
-    web_app.add_routes([
-        web.post("/webhook", webhook_handler),
-        web.get("/healthz", healthz),
-    ])
-
-    runner = web.AppRunner(web_app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8443)))
-    await site.start()
-
-    await app.start()
-    await app.updater.start_polling()
-    logger.info("Bot is running...")
-    await asyncio.Event().wait()
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8443)),
+        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
+    )
 
 nest_asyncio.apply()
 
