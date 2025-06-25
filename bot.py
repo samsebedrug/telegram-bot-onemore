@@ -2,6 +2,7 @@ import os
 import logging
 import asyncio
 import nest_asyncio
+from aiohttp import web
 
 from telegram import (
     Update,
@@ -9,6 +10,7 @@ from telegram import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
+from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -43,7 +45,7 @@ sheet = client.open("One More Bot").sheet1
 # Кнопки
 def base_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]
+        [InlineKeyboardButton("\U0001F310 На сайт", url="https://onemorepro.com")]
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -60,7 +62,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
         "С нами просто и точно захочется one more.\n\n"
         "Воспользуйтесь нашим telegram-ботом или напишите нам на почту weare@onemorepro.com\n\n"
-        "👇 Выберите, кто вы:"
+        "\u2B07\ufe0f Выберите, кто вы:"
     )
 
     if update.message:
@@ -150,11 +152,18 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-# Получение file_id изображения
+# Получить file_id присланного изображения
 async def get_photo_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.photo:
-        photo = update.message.photo[-1]
-        await update.message.reply_text(f"file_id этого изображения: `{photo.file_id}`", parse_mode="Markdown")
+    photo = update.message.photo[-1]
+    escaped_id = photo.file_id.replace('_', '\\_')
+    await update.message.reply_text(
+        f"*file_id этого изображения:* `{escaped_id}`",
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
+
+# Health check endpoint
+async def healthz(request):
+    return web.Response(text="ok")
 
 async def main():
     app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
@@ -181,13 +190,17 @@ async def main():
 
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
-    app.add_handler(MessageHandler(filters.PHOTO, get_photo_id))  # Обработчик фото
+    app.add_handler(MessageHandler(filters.PHOTO, get_photo_id))
+
+    web_app = web.Application()
+    web_app.add_routes([web.get("/healthz", healthz)])
 
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
-        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/"
+        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/",
+        web_app=web_app
     )
 
 nest_asyncio.apply()
