@@ -19,6 +19,7 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+from telegram.helpers import escape_markdown
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -141,13 +142,14 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Диалог отменён.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-async def get_photo_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    photo = update.message.photo[-1]
-    file_id = photo.file_id
-    await update.message.reply_text(
-        f"file_id этого изображения: `{file_id}`",
-        parse_mode="Markdown"
-    )
+async def get_photo_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.photo:
+        photo = update.message.photo[-1]
+        escaped_id = escape_markdown(photo.file_id, version=2)
+        await update.message.reply_text(
+            f"file_id этого изображения: `{escaped_id}`",
+            parse_mode="MarkdownV2"
+        )
 
 async def healthz(request):
     return web.Response(text="ok")
@@ -182,7 +184,7 @@ async def main():
 
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
-    app.add_handler(MessageHandler(filters.PHOTO, get_photo_id))  # Новый обработчик
+    app.add_handler(MessageHandler(filters.PHOTO, get_photo_id))
 
     await app.initialize()
     await app.bot.delete_webhook(drop_pending_updates=True)
@@ -202,6 +204,7 @@ async def main():
 
     await app.start()
     await app.updater.start_polling()
+
     logger.info("Bot is running...")
     await asyncio.Event().wait()
 
