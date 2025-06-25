@@ -192,7 +192,6 @@ async def main():
     await site.start()
 
     await app.start()
-    await app.updater.start_polling()  # required to process updates
 
     logger.info("Bot is running...")
     await asyncio.Event().wait()  # run forever
