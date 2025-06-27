@@ -34,12 +34,13 @@ sheet = client.open("One More Bot").sheet1
 
 # Состояния
 (
+    GREETING,
     CHOOSE_ROLE,
     GET_NAME,
     GET_CONTACT,
     GET_POSITION,
     GET_DETAILS
-) = range(5)
+) = range(6)
 
 # Кнопки
 def base_keyboard():
@@ -49,23 +50,34 @@ def base_keyboard():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
+    image_url = "https://onemorepro.com/images/4.jpg"
+    consent_text = (
+        "Добро пожаловать в One More Production!\n\n"
+        "Мы играем по правилам, поэтому должны получить от вас согласие на обработку данных.\n\n"
+        "Нажимая кнопку ниже, вы подтверждаете своё согласие с нашей <a href=\"https://onemorepro.com/docs/privacy.pdf\">политикой конфиденциальности</a> и обработкой персональных данных."
+    )
+    keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]]
+    if update.message:
+        await update.message.reply_photo(image_url)
+        await update.message.reply_html(consent_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    return GREETING
+
+async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
     keyboard = [
         [InlineKeyboardButton("Клиент", callback_data="client")],
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
+    await query.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
     welcome_text = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
         "С нами просто и точно захочется one more.\n\n"
-        "👇 Выберите, кто вы:"
+        "🔻 Выберите, кто вы:"
     )
-    if update.message:
-        await update.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
-        await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
-    elif update.callback_query:
-        await update.callback_query.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
-        await update.callback_query.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
     return CHOOSE_ROLE
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -164,6 +176,7 @@ async def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
+            GREETING: [CallbackQueryHandler(greeting, pattern="^agree$")],
             CHOOSE_ROLE: [CallbackQueryHandler(choose_role)],
             GET_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
             GET_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact)],
@@ -201,7 +214,6 @@ async def main():
     await site.start()
 
     await app.start()
-
     logger.info("Bot is running...")
     await asyncio.Event().wait()  # run forever
 
