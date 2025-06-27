@@ -3,3 +3,5 @@ gspread
 oauth2client
 nest_asyncio
 aiohttp
+mysql-connector-python
+pymysql
