@@ -45,44 +45,49 @@ sheet = client.open("One More Bot").sheet1
 ) = range(6)
 
 # Кнопки
-reply_keyboard = ReplyKeyboardMarkup(
-    [[KeyboardButton("/cancel"), KeyboardButton("/start")]], resize_keyboard=True, one_time_keyboard=True
-)
 
-def base_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]
-    ])
+def cancel_keyboard():
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton("Отмена")]], resize_keyboard=True, one_time_keyboard=True
+    )
+
+def site_keyboard():
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     image_url = "https://onemorepro.com/images/4.jpg"
     consent_text = (
+        "Привет!\n\n"
         "Мы играем по правилам, поэтому должны получить от вас согласие на обработку данных.\n\n"
         "Нажимая кнопку ниже, вы подтверждаете своё согласие с нашей <a href=\"https://onemorepro.com/docs/privacy.pdf\">политикой конфиденциальности</a> "
         "и обработкой персональных данных."
     )
     keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]]
     if update.message:
-        await update.message.reply_photo(photo=image_url, caption=consent_text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_photo(image_url, caption=None)
+        await update.message.reply_html(consent_text, reply_markup=InlineKeyboardMarkup(keyboard))
     return GREETING
 
 async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    image_url = "https://onemorepro.com/images/11-1.jpg"
     keyboard = [
         [InlineKeyboardButton("Клиент", callback_data="client")],
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")],
     ]
-    caption = (
+    welcome_text = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
         "С нами просто и точно захочется one more.\n\n"
         "🔻 Выберите, кто вы:"
     )
-    await query.message.reply_photo(photo=image_url, caption=caption, reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.message.reply_photo(
+        photo="https://onemorepro.com/images/11-1.jpg",
+        caption=welcome_text,
+        reply_markup=InlineKeyboardMarkup(keyboard + site_keyboard().inline_keyboard)
+    )
     return CHOOSE_ROLE
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -93,49 +98,72 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     role = role_map.get(raw_role, raw_role)
     context.user_data["role"] = raw_role
     context.user_data["row"] = [role, "", "", "", ""]
-    image_url = "https://onemorepro.com/images/12.jpg"
-    await query.message.reply_photo(photo=image_url, caption="Напишите, пожалуйста, ваше имя или название компании, которую вы представляете", reply_markup=reply_keyboard)
+    await query.message.reply_photo(
+        photo="https://onemorepro.com/images/12.jpg",
+        caption="Напишите, пожалуйста, ваше имя или название компании, которую вы представляете",
+        reply_markup=site_keyboard()
+    )
     return GET_NAME
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.message.text.lower() == "отмена":
+        return await cancel(update, context)
     name = update.message.text
     context.user_data["name"] = name
     context.user_data["row"][1] = name
-    image_url = "https://onemorepro.com/images/13-1.jpg"
-    await update.message.reply_photo(photo=image_url, caption="Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram).", reply_markup=reply_keyboard)
+    await update.message.reply_photo(
+        photo="https://onemorepro.com/images/13-1.jpg",
+        caption="Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram).",
+        reply_markup=site_keyboard()
+    )
     return GET_CONTACT
 
 async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.message.text.lower() == "отмена":
+        return await cancel(update, context)
     contact = update.message.text
     context.user_data["contact"] = contact
     context.user_data["row"][2] = contact
     role = context.user_data["role"]
     if role in ["applicant", "other"]:
-        image_url = "https://onemorepro.com/images/3.jpg"
-        await update.message.reply_photo(photo=image_url, caption="Какова ваша роль в производстве?", reply_markup=reply_keyboard)
+        await update.message.reply_photo(
+            photo="https://onemorepro.com/images/3.jpg",
+            caption="Какова ваша роль в производстве?",
+            reply_markup=site_keyboard()
+        )
     elif role == "client":
         keyboard = [
             [InlineKeyboardButton("Реклама", callback_data="ad")],
             [InlineKeyboardButton("Документальное кино", callback_data="doc")],
             [InlineKeyboardButton("Клип", callback_data="clip")],
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
-            [InlineKeyboardButton("Другое", callback_data="other")]
+            [InlineKeyboardButton("Другое", callback_data="other")],
         ]
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/3.jpg",
             caption="Что вас интересует?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            reply_markup=InlineKeyboardMarkup(keyboard + site_keyboard().inline_keyboard)
         )
     return GET_POSITION
 
 async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.message and update.message.text.lower() == "отмена":
+        return await cancel(update, context)
     if update.callback_query:
         await update.callback_query.answer()
         position = update.callback_query.data
-        await update.callback_query.message.reply_photo(photo="https://onemorepro.com/images/6.jpg", caption="Расскажите подробнее о вашем запросе:", reply_markup=reply_keyboard)
+        await update.callback_query.message.reply_photo(
+            photo="https://onemorepro.com/images/6.jpg",
+            caption="Расскажите подробнее о вашем запросе:",
+            reply_markup=site_keyboard()
+        )
     else:
         position = update.message.text
-        await update.message.reply_photo(photo="https://onemorepro.com/images/6.jpg", caption="Расскажите подробнее о вашем запросе:", reply_markup=reply_keyboard)
+        await update.message.reply_photo(
+            photo="https://onemorepro.com/images/6.jpg",
+            caption="Расскажите подробнее о вашем запросе:",
+            reply_markup=site_keyboard()
+        )
     context.user_data["position"] = position
     context.user_data["row"][3] = position
     return GET_DETAILS
@@ -145,20 +173,18 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["details"] = details
     context.user_data["row"][4] = details
     sheet.append_row(context.user_data["row"])
-    image_url = "https://onemorepro.com/images/8.jpg"
     await update.message.reply_photo(
-        photo=image_url,
+        photo="https://onemorepro.com/images/8.jpg",
         caption="Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\nДля повторного запуска бота введите /start",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=site_keyboard()
     )
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    image_url = "https://onemorepro.com/images/14.jpg"
     await update.message.reply_photo(
-        photo=image_url,
-        caption="Диалог отменён.\n\nДля повторного запуска бота введите /start",
-        reply_markup=ReplyKeyboardRemove()
+        photo="https://onemorepro.com/images/14.jpg",
+        caption="Диалог отменён. Для повторного запуска бота введите /start",
+        reply_markup=site_keyboard()
     )
     return ConversationHandler.END
 
@@ -186,7 +212,9 @@ async def main():
             ],
             GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[
+            CommandHandler("cancel", cancel),
+        ],
         per_chat=True,
         per_message=False,
     )
