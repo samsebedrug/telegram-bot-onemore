@@ -34,12 +34,13 @@ sheet = client.open("One More Bot").sheet1
 
 # Состояния
 (
+    GREETING,
     CHOOSE_ROLE,
     GET_NAME,
     GET_CONTACT,
     GET_POSITION,
     GET_DETAILS
-) = range(5)
+) = range(6)
 
 # Кнопки
 def base_keyboard():
@@ -47,28 +48,37 @@ def base_keyboard():
         [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]
     ])
 
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
-
-    message = (
-        "Добро пожаловать в One More Production!\n\n"
+    image_url = "https://onemorepro.com/images/4.jpg"
+    consent_text = (
+        "Привет!\n\n"
         "Мы играем по правилам, поэтому должны получить от вас согласие на обработку данных.\n\n"
-        "Нажимая кнопку ниже, вы подтверждаете своё согласие с нашей "
-        "[политикой конфиденциальности](https://onemorepro.com/privacy.pdf) и обработкой персональных данных."
+        "Нажимая кнопку ниже, вы подтверждаете своё согласие с нашей <a href=\"https://onemorepro.com/docs/privacy.pdf\">политикой конфиденциальности</a> "
+        "и обработкой персональных данных."
     )
-
-    keyboard = [[InlineKeyboardButton("✅ Согласен", callback_data="agree")]]
-
+    keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]]
     if update.message:
-        await update.message.reply_photo("https://onemorepro.com/images/4.jpg")
-        await update.message.reply_markdown(message, reply_markup=InlineKeyboardMarkup(keyboard))
-    elif update.callback_query:
-        await update.callback_query.message.reply_photo("https://onemorepro.com/images/4.jpg")
-        await update.callback_query.message.reply_markdown(message, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_photo(image_url)
+        await update.message.reply_html(consent_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    return GREETING
 
+async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    keyboard = [
+        [InlineKeyboardButton("Клиент", callback_data="client")],
+        [InlineKeyboardButton("Соискатель", callback_data="applicant")],
+        [InlineKeyboardButton("Другое", callback_data="other")]
+    ]
+    welcome_text = (
+        "Добро пожаловать в One More Production!\n\n"
+        "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
+        "С нами просто и точно захочется one more.\n\n"
+        "🔻 Выберите, кто вы:"
+    )
+    await query.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
     return CHOOSE_ROLE
-
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -78,15 +88,13 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     role = role_map.get(raw_role, raw_role)
     context.user_data["role"] = raw_role
     context.user_data["row"] = [role, "", "", "", ""]
-    await query.message.reply_photo("https://onemorepro.com/images/12.jpg")
-    await query.message.reply_text("Напишите, пожалуйста, ваше имя или название компании, которую вы представляете", reply_markup=base_keyboard())
+    await query.edit_message_text("Напишите, пожалуйста, ваше имя или название компании, которую вы представляете", reply_markup=base_keyboard())
     return GET_NAME
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     name = update.message.text
     context.user_data["name"] = name
     context.user_data["row"][1] = name
-    await update.message.reply_photo("https://onemorepro.com/images/13-1.jpg")
     await update.message.reply_text("Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram).", reply_markup=base_keyboard())
     return GET_CONTACT
 
@@ -96,7 +104,6 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["row"][2] = contact
     role = context.user_data["role"]
     if role in ["applicant", "other"]:
-        await update.message.reply_photo("https://onemorepro.com/images/3.jpg")
         await update.message.reply_text("Какова ваша роль в производстве?", reply_markup=base_keyboard())
     elif role == "client":
         keyboard = [
@@ -106,7 +113,6 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
             [InlineKeyboardButton("Другое", callback_data="other")]
         ]
-        await update.message.reply_photo("https://onemorepro.com/images/3.jpg")
         await update.message.reply_text(
             "Что вас интересует?",
             reply_markup=InlineKeyboardMarkup(keyboard + list(base_keyboard().inline_keyboard))
@@ -119,11 +125,9 @@ async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     if update.callback_query:
         await update.callback_query.answer()
         position = update.callback_query.data
-        await update.callback_query.message.reply_photo("https://onemorepro.com/images/6.jpg")
-        await update.callback_query.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
+        await update.callback_query.edit_message_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
     else:
         position = update.message.text
-        await update.message.reply_photo("https://onemorepro.com/images/6.jpg")
         await update.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
     context.user_data["position"] = position
     context.user_data["row"][3] = position
@@ -134,7 +138,6 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["details"] = details
     context.user_data["row"][4] = details
     sheet.append_row(context.user_data["row"])
-    await update.message.reply_photo("https://onemorepro.com/images/8.jpg")
     await update.message.reply_text(
         "Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\n"
         "Для повторного запуска бота введите команду /start",
@@ -166,6 +169,7 @@ async def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
+            GREETING: [CallbackQueryHandler(greeting, pattern="^agree$")],
             CHOOSE_ROLE: [CallbackQueryHandler(choose_role)],
             GET_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
             GET_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact)],
@@ -203,7 +207,6 @@ async def main():
     await site.start()
 
     await app.start()
-
     logger.info("Bot is running...")
     await asyncio.Event().wait()  # run forever
 
