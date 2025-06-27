@@ -63,7 +63,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_photo(
         photo="https://onemorepro.com/images/11-1.jpg",
         caption=welcome_text,
-        reply_markup=InlineKeyboardMarkup(keyboard + inline_site_cancel.inline_keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard + list(inline_site_cancel.inline_keyboard))
     )
     return CHOOSE_ROLE
 
@@ -117,7 +117,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/3.jpg",
             caption="Что вас интересует?",
-            reply_markup=InlineKeyboardMarkup(keyboard + inline_site_cancel.inline_keyboard)
+            reply_markup=InlineKeyboardMarkup(keyboard + list(inline_site_cancel.inline_keyboard))
         )
     return GET_POSITION
 
