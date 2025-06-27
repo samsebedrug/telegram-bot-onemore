@@ -6,9 +6,7 @@ from aiohttp import web
 
 from telegram import (
     Update,
-    ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
-    KeyboardButton,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
@@ -44,8 +42,10 @@ sheet = client.open("One More Bot").sheet1
 ) = range(5)
 
 # Кнопки
-site_keyboard = [[KeyboardButton("🌐 На сайт")], [KeyboardButton("Отмена")]]
-site_markup = ReplyKeyboardMarkup(site_keyboard, resize_keyboard=True)
+inline_site_cancel = InlineKeyboardMarkup([
+    [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
+    [InlineKeyboardButton("Отмена", callback_data="cancel")]
+])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
@@ -63,7 +63,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_photo(
         photo="https://onemorepro.com/images/11-1.jpg",
         caption=welcome_text,
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard + inline_site_cancel.inline_keyboard)
     )
     return CHOOSE_ROLE
 
@@ -71,6 +71,8 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     query = update.callback_query
     await query.answer()
     raw_role = query.data
+    if raw_role == "cancel":
+        return await cancel(update, context)
     role_map = {"client": "клиент", "applicant": "соискатель", "other": "другое"}
     role = role_map.get(raw_role, raw_role)
     context.user_data["role"] = raw_role
@@ -78,27 +80,23 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await query.message.reply_photo(
         photo="https://onemorepro.com/images/12.jpg",
         caption="Напишите, пожалуйста, ваше имя или название компании, которую вы представляете",
-        reply_markup=site_markup
+        reply_markup=inline_site_cancel
     )
     return GET_NAME
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     name = update.message.text
-    if name == "Отмена":
-        return await cancel(update, context)
     context.user_data["name"] = name
     context.user_data["row"][1] = name
     await update.message.reply_photo(
         photo="https://onemorepro.com/images/13-1.jpg",
         caption="Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram).",
-        reply_markup=site_markup
+        reply_markup=inline_site_cancel
     )
     return GET_CONTACT
 
 async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     contact = update.message.text
-    if contact == "Отмена":
-        return await cancel(update, context)
     context.user_data["contact"] = contact
     context.user_data["row"][2] = contact
     role = context.user_data["role"]
@@ -106,7 +104,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/3.jpg",
             caption="Какова ваша роль в производстве?",
-            reply_markup=site_markup
+            reply_markup=inline_site_cancel
         )
     elif role == "client":
         keyboard = [
@@ -119,27 +117,27 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/3.jpg",
             caption="Что вас интересует?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            reply_markup=InlineKeyboardMarkup(keyboard + inline_site_cancel.inline_keyboard)
         )
     return GET_POSITION
 
 async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.callback_query:
         await update.callback_query.answer()
+        if update.callback_query.data == "cancel":
+            return await cancel(update, context)
         position = update.callback_query.data
         await update.callback_query.message.reply_photo(
             photo="https://onemorepro.com/images/6.jpg",
             caption="Расскажите подробнее о вашем запросе:",
-            reply_markup=site_markup
+            reply_markup=inline_site_cancel
         )
     else:
         position = update.message.text
-        if position == "Отмена":
-            return await cancel(update, context)
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/6.jpg",
             caption="Расскажите подробнее о вашем запросе:",
-            reply_markup=site_markup
+            reply_markup=inline_site_cancel
         )
     context.user_data["position"] = position
     context.user_data["row"][3] = position
@@ -157,10 +155,17 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_photo(
-        photo="https://onemorepro.com/images/14.jpg",
-        caption="Диалог завершен. Для перезапуска бота введите /start"
-    )
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_photo(
+            photo="https://onemorepro.com/images/14.jpg",
+            caption="Диалог завершен. Для перезапуска бота введите /start"
+        )
+    else:
+        await update.message.reply_photo(
+            photo="https://onemorepro.com/images/14.jpg",
+            caption="Диалог завершен. Для перезапуска бота введите /start"
+        )
     return ConversationHandler.END
 
 async def healthz(request):
@@ -177,16 +182,17 @@ async def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            CHOOSE_ROLE: [CallbackQueryHandler(choose_role)],
-            GET_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-            GET_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact)],
+            CHOOSE_ROLE: [CallbackQueryHandler(choose_role), CallbackQueryHandler(cancel, pattern="^cancel$")],
+            GET_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name), CallbackQueryHandler(cancel, pattern="^cancel$")],
+            GET_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact), CallbackQueryHandler(cancel, pattern="^cancel$")],
             GET_POSITION: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, get_position),
-                CallbackQueryHandler(get_position)
+                CallbackQueryHandler(get_position),
+                CallbackQueryHandler(cancel, pattern="^cancel$")
             ],
-            GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
+            GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)]
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(cancel, pattern="^cancel$")],
         per_chat=True,
         per_message=False,
     )
