@@ -47,26 +47,28 @@ def base_keyboard():
         [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]
     ])
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
-    keyboard = [
-        [InlineKeyboardButton("Клиент", callback_data="client")],
-        [InlineKeyboardButton("Соискатель", callback_data="applicant")],
-        [InlineKeyboardButton("Другое", callback_data="other")]
-    ]
-    welcome_text = (
+
+    message = (
         "Добро пожаловать в One More Production!\n\n"
-        "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
-        "С нами просто и точно захочется one more.\n\n"
-        "👇 Выберите, кто вы:"
+        "Мы играем по правилам, поэтому должны получить от вас согласие на обработку данных.\n\n"
+        "Нажимая кнопку ниже, вы подтверждаете своё согласие с нашей "
+        "[политикой конфиденциальности](https://onemorepro.com/privacy.pdf) и обработкой персональных данных."
     )
+
+    keyboard = [[InlineKeyboardButton("✅ Согласен", callback_data="agree")]]
+
     if update.message:
-        await update.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
-        await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_photo("https://onemorepro.com/images/4.jpg")
+        await update.message.reply_markdown(message, reply_markup=InlineKeyboardMarkup(keyboard))
     elif update.callback_query:
-        await update.callback_query.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
-        await update.callback_query.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.callback_query.message.reply_photo("https://onemorepro.com/images/4.jpg")
+        await update.callback_query.message.reply_markdown(message, reply_markup=InlineKeyboardMarkup(keyboard))
+
     return CHOOSE_ROLE
+
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
