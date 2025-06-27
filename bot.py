@@ -2,7 +2,6 @@ import os
 import logging
 import asyncio
 import nest_asyncio
-import pymysql
 from aiohttp import web
 
 from telegram import (
@@ -33,29 +32,6 @@ credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json
 client = gspread.authorize(credentials)
 sheet = client.open("One More Bot").sheet1
 
-# MySQL (Beget)
-db = pymysql.connect(
-    host=os.environ["DB_HOST"],
-    user=os.environ["DB_USER"],
-    password=os.environ["DB_PASSWORD"],
-    database=os.environ["DB_NAME"],
-    charset='utf8mb4',
-    cursorclass=pymysql.cursors.DictCursor
-)
-
-with db.cursor() as cursor:
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS leads (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            role VARCHAR(255),
-            name TEXT,
-            contact TEXT,
-            position TEXT,
-            details TEXT
-        )
-    """)
-db.commit()
-
 # Состояния
 (
     CHOOSE_ROLE,
@@ -73,7 +49,6 @@ def base_keyboard():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
-    await update.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
     keyboard = [
         [InlineKeyboardButton("Клиент", callback_data="client")],
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
@@ -85,7 +60,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "С нами просто и точно захочется one more.\n\n"
         "👇 Выберите, кто вы:"
     )
-    await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    if update.message:
+        await update.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
+        await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    elif update.callback_query:
+        await update.callback_query.message.reply_photo("https://onemorepro.com/images/11-1.jpg")
+        await update.callback_query.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
     return CHOOSE_ROLE
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -97,7 +77,7 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["role"] = raw_role
     context.user_data["row"] = [role, "", "", "", ""]
     await query.message.reply_photo("https://onemorepro.com/images/12.jpg")
-    await query.edit_message_text("Напишите, пожалуйста, ваше имя или название компании, которую вы представляете", reply_markup=base_keyboard())
+    await query.message.reply_text("Напишите, пожалуйста, ваше имя или название компании, которую вы представляете", reply_markup=base_keyboard())
     return GET_NAME
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -113,8 +93,8 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["contact"] = contact
     context.user_data["row"][2] = contact
     role = context.user_data["role"]
-    await update.message.reply_photo("https://onemorepro.com/images/3.jpg")
     if role in ["applicant", "other"]:
+        await update.message.reply_photo("https://onemorepro.com/images/3.jpg")
         await update.message.reply_text("Какова ваша роль в производстве?", reply_markup=base_keyboard())
     elif role == "client":
         keyboard = [
@@ -124,6 +104,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
             [InlineKeyboardButton("Другое", callback_data="other")]
         ]
+        await update.message.reply_photo("https://onemorepro.com/images/3.jpg")
         await update.message.reply_text(
             "Что вас интересует?",
             reply_markup=InlineKeyboardMarkup(keyboard + list(base_keyboard().inline_keyboard))
@@ -133,13 +114,14 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return GET_POSITION
 
 async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_photo("https://onemorepro.com/images/6.jpg")
     if update.callback_query:
         await update.callback_query.answer()
         position = update.callback_query.data
-        await update.callback_query.edit_message_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
+        await update.callback_query.message.reply_photo("https://onemorepro.com/images/6.jpg")
+        await update.callback_query.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
     else:
         position = update.message.text
+        await update.message.reply_photo("https://onemorepro.com/images/6.jpg")
         await update.message.reply_text("Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
     context.user_data["position"] = position
     context.user_data["row"][3] = position
@@ -149,19 +131,7 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     details = update.message.text
     context.user_data["details"] = details
     context.user_data["row"][4] = details
-    row = context.user_data["row"]
-
-    # Google Sheets
-    sheet.append_row(row)
-
-    # Beget MySQL
-    with db.cursor() as cursor:
-        cursor.execute("""
-            INSERT INTO leads (role, name, contact, position, details)
-            VALUES (%s, %s, %s, %s, %s)
-        """, row)
-    db.commit()
-
+    sheet.append_row(context.user_data["row"])
     await update.message.reply_photo("https://onemorepro.com/images/8.jpg")
     await update.message.reply_text(
         "Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\n"
@@ -231,6 +201,7 @@ async def main():
     await site.start()
 
     await app.start()
+
     logger.info("Bot is running...")
     await asyncio.Event().wait()  # run forever
 
