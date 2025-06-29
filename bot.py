@@ -45,10 +45,10 @@ sheet = client.open("One More Bot").sheet1
 # Кнопки
 
 def base_keyboard():
-    return [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
         [InlineKeyboardButton("🔁 Начать заново", callback_data="restart")]
-    ]
+    ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
@@ -58,21 +58,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "Нажимая кнопку ниже, вы подтверждаете своё согласие с нашей <a href='https://onemorepro.com/docs/privacy.pdf'>"
         "политикой конфиденциальности</a> и обработкой персональных данных."
     )
-    keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]] + base_keyboard()
-    markup = InlineKeyboardMarkup(keyboard)
+    keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]]
+    full_keyboard = InlineKeyboardMarkup(keyboard + base_keyboard().inline_keyboard)
     if update.message:
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/4.jpg",
             caption=consent_caption,
             parse_mode='HTML',
-            reply_markup=markup
+            reply_markup=full_keyboard
         )
     elif update.callback_query:
         await update.callback_query.message.reply_photo(
             photo="https://onemorepro.com/images/4.jpg",
             caption=consent_caption,
             parse_mode='HTML',
-            reply_markup=markup
+            reply_markup=full_keyboard
         )
     return GREETING
 
@@ -84,7 +84,8 @@ async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
-    caption = (
+    full_keyboard = InlineKeyboardMarkup(keyboard + base_keyboard().inline_keyboard)
+    welcome_text = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
         "С нами просто и точно захочется one more.\n\n"
@@ -92,9 +93,9 @@ async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     await query.message.reply_photo(
         photo="https://onemorepro.com/images/11-1.jpg",
-        caption=caption,
+        caption=welcome_text,
         parse_mode='HTML',
-        reply_markup=InlineKeyboardMarkup(keyboard + base_keyboard().inline_keyboard)
+        reply_markup=full_keyboard
     )
     return CHOOSE_ROLE
 
@@ -106,10 +107,10 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     role = role_map.get(raw_role, raw_role)
     context.user_data["role"] = raw_role
     context.user_data["row"] = [role, "", "", "", ""]
-    caption = "Напишите, пожалуйста, ваше имя или название компании, которую вы представляете"
+    name_prompt = """Напишите, пожалуйста, ваше имя или название компании, которую вы представляете"""
     await query.message.reply_photo(
         photo="https://onemorepro.com/images/12.jpg",
-        caption=caption,
+        caption=name_prompt,
         reply_markup=base_keyboard()
     )
     return GET_NAME
@@ -123,10 +124,10 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if "row" not in context.user_data:
         context.user_data["row"] = ["", name, "", "", ""]
     context.user_data["row"][1] = name
-    caption = "Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram)."
+    contact_prompt = "Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram)."
     await update.message.reply_photo(
         photo="https://onemorepro.com/images/13-1.jpg",
-        caption=caption,
+        caption=contact_prompt,
         reply_markup=base_keyboard()
     )
     return GET_CONTACT
@@ -271,7 +272,7 @@ async def main():
 
     await app.start()
     logger.info("Bot is running...")
-    await asyncio.Event().wait()
+    await asyncio.Event().wait()  # run forever
 
 nest_asyncio.apply()
 
