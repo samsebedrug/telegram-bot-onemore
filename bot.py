@@ -91,12 +91,10 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     role = role_map.get(raw_role, raw_role)
     context.user_data["role"] = raw_role
     context.user_data["row"] = [role, "", "", "", ""]
-    await query.message.reply_html(
-        "<img src='https://onemorepro.com/images/12.jpg'/>
+    name_prompt = """<img src='https://onemorepro.com/images/12.jpg'/>
 
-Напишите, пожалуйста, ваше имя или название компании, которую вы представляете",
-        reply_markup=base_keyboard()
-    )
+Напишите, пожалуйста, ваше имя или название компании, которую вы представляете"""
+    await query.message.reply_html(name_prompt, reply_markup=base_keyboard())
     return GET_NAME
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -106,12 +104,10 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return GET_NAME
     context.user_data["name"] = name
     context.user_data["row"][1] = name
-    await update.message.reply_html(
-        "<img src='https://onemorepro.com/images/13-1.jpg'/>
+    contact_prompt = """<img src='https://onemorepro.com/images/13-1.jpg'/>
 
-Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram).",
-        reply_markup=base_keyboard()
-    )
+Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram)."""
+    await update.message.reply_html(contact_prompt, reply_markup=base_keyboard())
     return GET_CONTACT
 
 async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -123,12 +119,9 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     context.user_data["row"][2] = contact
     role = context.user_data["role"]
     if role in ["applicant", "other"]:
-        await update.message.reply_html(
-            "<img src='https://onemorepro.com/images/3.jpg'/>
+        await update.message.reply_html("""<img src='https://onemorepro.com/images/3.jpg'/>
 
-Какова ваша роль в производстве?",
-            reply_markup=base_keyboard()
-        )
+Какова ваша роль в производстве?""", reply_markup=base_keyboard())
     elif role == "client":
         keyboard = [
             [InlineKeyboardButton("Реклама", callback_data="ad")],
@@ -137,10 +130,11 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
             [InlineKeyboardButton("Другое", callback_data="other")]
         ]
-        await update.message.reply_html(
-            "<img src='https://onemorepro.com/images/3.jpg'/>
+        interest_text = """<img src='https://onemorepro.com/images/3.jpg'/>
 
-Что вас интересует?",
+Что вас интересует?"""
+        await update.message.reply_html(
+            interest_text,
             reply_markup=InlineKeyboardMarkup(keyboard + list(base_keyboard().inline_keyboard))
         )
     else:
@@ -151,20 +145,14 @@ async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     if update.callback_query:
         await update.callback_query.answer()
         position = update.callback_query.data
-        await update.callback_query.message.reply_html(
-            "<img src='https://onemorepro.com/images/6.jpg'/>
+        await update.callback_query.message.reply_html("""<img src='https://onemorepro.com/images/6.jpg'/>
 
-Расскажите подробнее о вашем запросе:",
-            reply_markup=base_keyboard()
-        )
+Расскажите подробнее о вашем запросе:""", reply_markup=base_keyboard())
     else:
         position = update.message.text
-        await update.message.reply_html(
-            "<img src='https://onemorepro.com/images/6.jpg'/>
+        await update.message.reply_html("""<img src='https://onemorepro.com/images/6.jpg'/>
 
-Расскажите подробнее о вашем запросе:",
-            reply_markup=base_keyboard()
-        )
+Расскажите подробнее о вашем запросе:""", reply_markup=base_keyboard())
     context.user_data["position"] = position
     context.user_data["row"][3] = position
     return GET_DETAILS
@@ -182,14 +170,12 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         logger.exception("Ошибка при записи в таблицу")
         await update.message.reply_text("Произошла ошибка при сохранении данных. Попробуйте позже.", reply_markup=base_keyboard())
         return ConversationHandler.END
-    await update.message.reply_html(
-        "<img src='https://onemorepro.com/images/8.jpg'/>
+    thank_you_text = """<img src='https://onemorepro.com/images/8.jpg'/>
 
 Спасибо! Мы получили ваши данные и скоро с вами свяжемся.
 
-Для повторного запуска бота введите команду /start",
-        reply_markup=base_keyboard()
-    )
+Для повторного запуска бота введите команду /start"""
+    await update.message.reply_html(thank_you_text, reply_markup=base_keyboard())
     return ConversationHandler.END
 
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
