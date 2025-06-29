@@ -55,24 +55,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     consent_caption = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы играем по правилам, поэтому должны получить от вас согласие на обработку данных.\n\n"
-        "Нажимая кнопку ниже, вы подтверждаете своё согласие с нашей <a href='https://onemorepro.com/docs/privacy.pdf'>"
-        "политикой конфиденциальности</a> и обработкой персональных данных."
+        "Нажимая кнопку ниже, вы подтверждаете своё согласие с нашей <a href='https://onemorepro.com/docs/privacy.pdf'>политикой конфиденциальности</a> и обработкой персональных данных."
     )
     keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]]
     if update.message:
-        await update.message.reply_photo(
-            photo="https://onemorepro.com/images/4.jpg",
-            caption=consent_caption,
-            parse_mode='HTML',
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await update.message.reply_photo(photo="https://onemorepro.com/images/4.jpg", caption=consent_caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
     elif update.callback_query:
-        await update.callback_query.message.reply_photo(
-            photo="https://onemorepro.com/images/4.jpg",
-            caption=consent_caption,
-            parse_mode='HTML',
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await update.callback_query.message.reply_photo(photo="https://onemorepro.com/images/4.jpg", caption=consent_caption, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
     return GREETING
 
 async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -83,17 +72,16 @@ async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
-    welcome_text = (
-        "Добро пожаловать в One More Production!\n\n"
-        "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
-        "С нами просто и точно захочется one more.\n\n"
-        "🔻 Выберите, кто вы:"
-    )
     await query.message.reply_photo(
         photo="https://onemorepro.com/images/11-1.jpg",
-        caption=welcome_text,
-        parse_mode='HTML',
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        caption=(
+            "Добро пожаловать в One More Production!\n\n"
+            "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
+            "С нами просто и точно захочется one more.\n\n"
+            "🔻 Выберите, кто вы:"
+        ),
+        reply_markup=InlineKeyboardMarkup(keyboard + base_keyboard().inline_keyboard),
+        parse_mode='HTML'
     )
     return CHOOSE_ROLE
 
@@ -105,10 +93,9 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     role = role_map.get(raw_role, raw_role)
     context.user_data["role"] = raw_role
     context.user_data["row"] = [role, "", "", "", ""]
-    name_prompt = """Напишите, пожалуйста, ваше имя или название компании, которую вы представляете"""
     await query.message.reply_photo(
         photo="https://onemorepro.com/images/12.jpg",
-        caption=name_prompt,
+        caption="Напишите, пожалуйста, ваше имя или название компании, которую вы представляете",
         reply_markup=base_keyboard()
     )
     return GET_NAME
@@ -119,13 +106,10 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text("Пожалуйста, введите корректное имя (до 100 символов).", reply_markup=base_keyboard())
         return GET_NAME
     context.user_data["name"] = name
-    if "row" not in context.user_data:
-        context.user_data["row"] = ["", name, "", "", ""]
     context.user_data["row"][1] = name
-    contact_prompt = "Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram)."
     await update.message.reply_photo(
         photo="https://onemorepro.com/images/13-1.jpg",
-        caption=contact_prompt,
+        caption="Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram).",
         reply_markup=base_keyboard()
     )
     return GET_CONTACT
@@ -137,13 +121,9 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         return GET_CONTACT
     context.user_data["contact"] = contact
     context.user_data["row"][2] = contact
-    role = context.user_data.get("role")
+    role = context.user_data["role"]
     if role in ["applicant", "other"]:
-        await update.message.reply_photo(
-            photo="https://onemorepro.com/images/3.jpg",
-            caption="Какова ваша роль в производстве?",
-            reply_markup=base_keyboard()
-        )
+        await update.message.reply_photo(photo="https://onemorepro.com/images/3.jpg", caption="Какова ваша роль в производстве?", reply_markup=base_keyboard())
     elif role == "client":
         keyboard = [
             [InlineKeyboardButton("Реклама", callback_data="ad")],
@@ -165,18 +145,10 @@ async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     if update.callback_query:
         await update.callback_query.answer()
         position = update.callback_query.data
-        await update.callback_query.message.reply_photo(
-            photo="https://onemorepro.com/images/6.jpg",
-            caption="Расскажите подробнее о вашем запросе:",
-            reply_markup=base_keyboard()
-        )
+        await update.callback_query.message.reply_photo(photo="https://onemorepro.com/images/6.jpg", caption="Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
     else:
         position = update.message.text
-        await update.message.reply_photo(
-            photo="https://onemorepro.com/images/6.jpg",
-            caption="Расскажите подробнее о вашем запросе:",
-            reply_markup=base_keyboard()
-        )
+        await update.message.reply_photo(photo="https://onemorepro.com/images/6.jpg", caption="Расскажите подробнее о вашем запросе:", reply_markup=base_keyboard())
     context.user_data["position"] = position
     context.user_data["row"][3] = position
     return GET_DETAILS
@@ -194,23 +166,23 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         logger.exception("Ошибка при записи в таблицу")
         await update.message.reply_text("Произошла ошибка при сохранении данных. Попробуйте позже.", reply_markup=base_keyboard())
         return ConversationHandler.END
-    thank_you_text = """Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\nДля повторного запуска бота введите команду /start"""
-    await update.message.reply_photo(
-        photo="https://onemorepro.com/images/8.jpg",
-        caption=thank_you_text,
-        reply_markup=base_keyboard()
-    )
+    await update.message.reply_photo(photo="https://onemorepro.com/images/8.jpg", caption="Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\nДля повторного запуска бота введите команду /start", reply_markup=base_keyboard())
     return ConversationHandler.END
 
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # Удаление ранее добавленной строки из таблицы
     try:
-        if "row" in context.user_data:
-            all_records = sheet.get_all_values()
-            if context.user_data["row"] in all_records:
-                index = all_records.index(context.user_data["row"]) + 1
-                sheet.delete_row(index)
-    except Exception:
-        logger.warning("Не удалось удалить строку при рестарте")
+        name = context.user_data.get("name")
+        contact = context.user_data.get("contact")
+        if name and contact:
+            records = sheet.get_all_records()
+            for i, row in enumerate(records, start=2):
+                if row.get("Имя") == name and row.get("Контакт") == contact:
+                    sheet.delete_rows(i)
+                    break
+    except Exception as e:
+        logger.exception("Ошибка при удалении строки")
+
     context.user_data.clear()
     if update.callback_query:
         await update.callback_query.answer()
@@ -238,11 +210,7 @@ async def main():
             CHOOSE_ROLE: [CallbackQueryHandler(choose_role), CallbackQueryHandler(restart, pattern="^restart$")],
             GET_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name), CallbackQueryHandler(restart, pattern="^restart$")],
             GET_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact), CallbackQueryHandler(restart, pattern="^restart$")],
-            GET_POSITION: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_position),
-                CallbackQueryHandler(get_position),
-                CallbackQueryHandler(restart, pattern="^restart$")
-            ],
+            GET_POSITION: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_position), CallbackQueryHandler(get_position), CallbackQueryHandler(restart, pattern="^restart$")],
             GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details), CallbackQueryHandler(restart, pattern="^restart$")],
         },
         fallbacks=[
@@ -254,6 +222,7 @@ async def main():
     )
 
     app.add_handler(conv_handler)
+    app.add_handler(CallbackQueryHandler(restart, pattern="^restart$"))
 
     await app.initialize()
     await app.bot.delete_webhook(drop_pending_updates=True)
