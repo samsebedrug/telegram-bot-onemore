@@ -45,10 +45,10 @@ sheet = client.open("One More Bot").sheet1
 # Кнопки
 
 def base_keyboard():
-    return InlineKeyboardMarkup([
+    return [
         [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
         [InlineKeyboardButton("🔁 Начать заново", callback_data="restart")]
-    ])
+    ]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
@@ -58,20 +58,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "Нажимая кнопку ниже, вы подтверждаете своё согласие с нашей <a href='https://onemorepro.com/docs/privacy.pdf'>"
         "политикой конфиденциальности</a> и обработкой персональных данных."
     )
-    keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]] + base_keyboard().inline_keyboard
+    keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]] + base_keyboard()
+    markup = InlineKeyboardMarkup(keyboard)
     if update.message:
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/4.jpg",
             caption=consent_caption,
             parse_mode='HTML',
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            reply_markup=markup
         )
     elif update.callback_query:
         await update.callback_query.message.reply_photo(
             photo="https://onemorepro.com/images/4.jpg",
             caption=consent_caption,
             parse_mode='HTML',
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            reply_markup=markup
         )
     return GREETING
 
