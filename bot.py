@@ -78,6 +78,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
+    if query.data == "restart":
+        return await restart(update, context)
     await query.answer()
     keyboard = [
         [InlineKeyboardButton("Клиент", callback_data="client")],
@@ -101,6 +103,8 @@ async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
+    if query.data == "restart":
+        return await restart(update, context)
     await query.answer()
     raw_role = query.data
     role_map = {"client": "клиент", "applicant": "соискатель", "other": "другое"}
@@ -162,6 +166,8 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def get_position(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.callback_query:
+        if update.callback_query.data == "restart":
+            return await restart(update, context)
         await update.callback_query.answer()
         position = update.callback_query.data
         await update.callback_query.message.reply_photo(
@@ -233,16 +239,15 @@ async def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            GREETING: [CallbackQueryHandler(greeting, pattern="^agree$"), CallbackQueryHandler(restart, pattern="^restart$")],
-            CHOOSE_ROLE: [CallbackQueryHandler(choose_role), CallbackQueryHandler(restart, pattern="^restart$")],
-            GET_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name), CallbackQueryHandler(restart, pattern="^restart$")],
-            GET_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact), CallbackQueryHandler(restart, pattern="^restart$")],
+            GREETING: [CallbackQueryHandler(greeting)],
+            CHOOSE_ROLE: [CallbackQueryHandler(choose_role)],
+            GET_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+            GET_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact)],
             GET_POSITION: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, get_position),
-                CallbackQueryHandler(get_position),
-                CallbackQueryHandler(restart, pattern="^restart$")
+                CallbackQueryHandler(get_position)
             ],
-            GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details), CallbackQueryHandler(restart, pattern="^restart$")],
+            GET_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
         },
         fallbacks=[
             CommandHandler("cancel", cancel),
@@ -255,7 +260,6 @@ async def main():
     app.add_handler(conv_handler)
 
     await app.initialize()
-    await app.start()
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.bot.set_webhook(url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/webhook")
 
@@ -268,9 +272,10 @@ async def main():
 
     runner = web.AppRunner(web_app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 10000)))
+    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8443)))
     await site.start()
 
+    await app.start()
     logger.info("Bot is running...")
     await asyncio.Event().wait()
 
