@@ -59,7 +59,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "политикой конфиденциальности</a> и обработкой персональных данных."
     )
     keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]]
-    full_keyboard = InlineKeyboardMarkup(keyboard + base_keyboard().inline_keyboard)
+    full_keyboard = InlineKeyboardMarkup(keyboard + list(base_keyboard().inline_keyboard))
     if update.message:
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/4.jpg",
