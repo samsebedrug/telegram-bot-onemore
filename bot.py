@@ -255,6 +255,7 @@ async def main():
     app.add_handler(conv_handler)
 
     await app.initialize()
+    await app.start()
     await app.bot.delete_webhook(drop_pending_updates=True)
     await app.bot.set_webhook(url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/webhook")
 
@@ -267,10 +268,9 @@ async def main():
 
     runner = web.AppRunner(web_app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8443)))
+    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 10000)))
     await site.start()
 
-    await app.start()
     logger.info("Bot is running...")
     await asyncio.Event().wait()
 
