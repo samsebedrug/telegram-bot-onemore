@@ -84,7 +84,7 @@ async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
     ]
-    full_keyboard = InlineKeyboardMarkup(keyboard + base_keyboard().inline_keyboard)
+    full_keyboard = InlineKeyboardMarkup(keyboard + list(base_keyboard().inline_keyboard))
     welcome_text = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
@@ -154,7 +154,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/3.jpg",
             caption="Что вас интересует?",
-            reply_markup=InlineKeyboardMarkup(keyboard + base_keyboard().inline_keyboard)
+            reply_markup=InlineKeyboardMarkup(keyboard + list(base_keyboard().inline_keyboard))
         )
     else:
         return GET_DETAILS
@@ -272,7 +272,7 @@ async def main():
 
     await app.start()
     logger.info("Bot is running...")
-    await asyncio.Event().wait()  # run forever
+    await asyncio.Event().wait()
 
 nest_asyncio.apply()
 
