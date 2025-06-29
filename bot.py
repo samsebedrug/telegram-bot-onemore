@@ -46,8 +46,8 @@ sheet = client.open("One More Bot").sheet1
 
 def base_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-        [InlineKeyboardButton("🔁 Начать заново", callback_data="restart")]
+        [InlineKeyboardButton("\ud83c\udf10 На сайт", url="https://onemorepro.com")],
+        [InlineKeyboardButton("\ud83d\udd01 Начать заново", callback_data="restart")]
     ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -58,7 +58,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         "Нажимая кнопку ниже, вы подтверждаете своё согласие с нашей <a href='https://onemorepro.com/docs/privacy.pdf'>"
         "политикой конфиденциальности</a> и обработкой персональных данных."
     )
-    keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]]
+    keyboard = [[InlineKeyboardButton("Согласен", callback_data="agree")]] + base_keyboard().inline_keyboard
     if update.message:
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/4.jpg",
@@ -82,12 +82,12 @@ async def greeting(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         [InlineKeyboardButton("Клиент", callback_data="client")],
         [InlineKeyboardButton("Соискатель", callback_data="applicant")],
         [InlineKeyboardButton("Другое", callback_data="other")]
-    ]
+    ] + base_keyboard().inline_keyboard
     welcome_text = (
         "Добро пожаловать в One More Production!\n\n"
         "Мы создаём рекламу, клипы, документальное кино и digital-контент.\n"
         "С нами просто и точно захочется one more.\n\n"
-        "🔻 Выберите, кто вы:"
+        "\ud83d\udd3b Выберите, кто вы:"
     )
     await query.message.reply_photo(
         photo="https://onemorepro.com/images/11-1.jpg",
@@ -105,10 +105,9 @@ async def choose_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     role = role_map.get(raw_role, raw_role)
     context.user_data["role"] = raw_role
     context.user_data["row"] = [role, "", "", "", ""]
-    name_prompt = """Напишите, пожалуйста, ваше имя или название компании, которую вы представляете"""
     await query.message.reply_photo(
         photo="https://onemorepro.com/images/12.jpg",
-        caption=name_prompt,
+        caption="Напишите, пожалуйста, ваше имя или название компании, которую вы представляете",
         reply_markup=base_keyboard()
     )
     return GET_NAME
@@ -122,19 +121,15 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if "row" not in context.user_data:
         context.user_data["row"] = ["", name, "", "", ""]
     context.user_data["row"][1] = name
-    contact_prompt = "Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram)."
     await update.message.reply_photo(
         photo="https://onemorepro.com/images/13-1.jpg",
-        caption=contact_prompt,
+        caption="Оставьте, пожалуйста, ваш контакт (телефон, email или ник в Telegram).",
         reply_markup=base_keyboard()
     )
     return GET_CONTACT
 
 async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     contact = update.message.text.strip()
-    if not any(s in contact for s in ["@", "+", "."]):
-        await update.message.reply_text("Пожалуйста, введите корректный контакт.", reply_markup=base_keyboard())
-        return GET_CONTACT
     context.user_data["contact"] = contact
     context.user_data["row"][2] = contact
     role = context.user_data.get("role")
@@ -151,11 +146,11 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             [InlineKeyboardButton("Клип", callback_data="clip")],
             [InlineKeyboardButton("Digital-контент", callback_data="digital")],
             [InlineKeyboardButton("Другое", callback_data="other")]
-        ]
+        ] + base_keyboard().inline_keyboard
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/3.jpg",
             caption="Что вас интересует?",
-            reply_markup=InlineKeyboardMarkup(keyboard + base_keyboard().inline_keyboard)
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
         return GET_DETAILS
@@ -194,10 +189,9 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         logger.exception("Ошибка при записи в таблицу")
         await update.message.reply_text("Произошла ошибка при сохранении данных. Попробуйте позже.", reply_markup=base_keyboard())
         return ConversationHandler.END
-    thank_you_text = """Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\nДля повторного запуска бота введите команду /start"""
     await update.message.reply_photo(
         photo="https://onemorepro.com/images/8.jpg",
-        caption=thank_you_text,
+        caption="Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\nДля повторного запуска бота введите команду /start",
         reply_markup=base_keyboard()
     )
     return ConversationHandler.END
