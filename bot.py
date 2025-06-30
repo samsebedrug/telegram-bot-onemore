@@ -44,11 +44,11 @@ sheet = client.open("One More Bot").sheet1
 
 # Кнопки
 
-def base_keyboard(include_restart=True):
-    buttons = [[InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]]
-    if include_restart:
-        buttons.append([InlineKeyboardButton("🔁 Начать заново", callback_data="restart")])
-    return InlineKeyboardMarkup(buttons)
+def base_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
+        [InlineKeyboardButton("🔁 Начать заново", callback_data="restart")]
+    ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
@@ -158,7 +158,7 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_photo(
             photo="https://onemorepro.com/images/3.jpg",
             caption="Что вас интересует?",
-            reply_markup=InlineKeyboardMarkup(keyboard + list(base_keyboard().inline_keyboard))
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
         return GET_DETAILS
@@ -202,8 +202,7 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     thank_you_text = """Спасибо! Мы получили ваши данные и скоро с вами свяжемся.\n\nДля повторного запуска бота введите команду /start"""
     await update.message.reply_photo(
         photo="https://onemorepro.com/images/8.jpg",
-        caption=thank_you_text,
-        reply_markup=base_keyboard(include_restart=False)
+        caption=thank_you_text
     )
     return ConversationHandler.END
 
@@ -233,11 +232,6 @@ async def webhook_handler(request):
     await request.app["application"].process_update(Update.de_json(update, request.app["application"].bot))
     return web.Response()
 
-async def keep_alive():
-    while True:
-        logger.info("Ping: still alive")
-        await asyncio.sleep(600)
-
 async def main():
     app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
 
@@ -259,7 +253,7 @@ async def main():
             CallbackQueryHandler(restart, pattern="^restart$")
         ],
         per_chat=True,
-        per_message=True,
+        per_message=False,
     )
 
     app.add_handler(conv_handler)
@@ -282,7 +276,8 @@ async def main():
 
     await app.start()
     logger.info("Bot is running...")
-    await keep_alive()
+    logger.info("Ping: still alive")
+    await asyncio.Event().wait()
 
 nest_asyncio.apply()
 
