@@ -44,11 +44,11 @@ sheet = client.open("One More Bot").sheet1
 
 # Кнопки
 
-def base_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")],
-        [InlineKeyboardButton("🔁 Начать заново", callback_data="restart")]
-    ])
+def base_keyboard(include_restart=True):
+    buttons = [[InlineKeyboardButton("🌐 На сайт", url="https://onemorepro.com")]]
+    if include_restart:
+        buttons.append([InlineKeyboardButton("🔁 Начать заново", callback_data="restart")])
+    return InlineKeyboardMarkup(buttons)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
@@ -203,7 +203,7 @@ async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await update.message.reply_photo(
         photo="https://onemorepro.com/images/8.jpg",
         caption=thank_you_text,
-        reply_markup=base_keyboard()
+        reply_markup=base_keyboard(include_restart=False)
     )
     return ConversationHandler.END
 
@@ -235,11 +235,8 @@ async def webhook_handler(request):
 
 async def keep_alive():
     while True:
-        try:
-            logger.info("Ping: still alive")
-        except Exception as e:
-            logger.warning(f"Keep-alive failed: {e}")
-        await asyncio.sleep(300)
+        logger.info("Ping: still alive")
+        await asyncio.sleep(600)
 
 async def main():
     app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
@@ -262,7 +259,7 @@ async def main():
             CallbackQueryHandler(restart, pattern="^restart$")
         ],
         per_chat=True,
-        per_message=False,
+        per_message=True,
     )
 
     app.add_handler(conv_handler)
@@ -283,11 +280,9 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8443)))
     await site.start()
 
-    asyncio.create_task(keep_alive())
-
     await app.start()
     logger.info("Bot is running...")
-    await asyncio.Event().wait()
+    await keep_alive()
 
 nest_asyncio.apply()
 
