@@ -233,6 +233,14 @@ async def webhook_handler(request):
     await request.app["application"].process_update(Update.de_json(update, request.app["application"].bot))
     return web.Response()
 
+async def keep_alive():
+    while True:
+        try:
+            logger.info("Ping: still alive")
+        except Exception as e:
+            logger.warning(f"Keep-alive failed: {e}")
+        await asyncio.sleep(300)
+
 async def main():
     app = Application.builder().token(os.environ["BOT_TOKEN"]).build()
 
@@ -274,6 +282,8 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8443)))
     await site.start()
+
+    asyncio.create_task(keep_alive())
 
     await app.start()
     logger.info("Bot is running...")
